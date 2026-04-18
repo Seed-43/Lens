@@ -1,9 +1,9 @@
 [Desktop Entry]
-Name=Frog
+Name=Lens
 GenericName=Text extraction tool
 Comment=Extract text from any image, video or web page
-Exec=frog
-Icon=com.github.tenderowl.frog
+Exec=lens
+Icon=io.github.seed43.lens
 Terminal=false
 Type=Application
 Categories=GTK;Utility;Office;
@@ -15,4 +15,4 @@ X-Purism-FormFactor=Workstation;Mobile;
 
 [Desktop Action extractToClipboard]
 Name=Extract Text to the Clipboard
-Exec=frog --extract_to_clipboard
+Exec=lens --extract_to_clipboard

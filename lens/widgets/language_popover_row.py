@@ -1,4 +1,4 @@
-# config.py
+# language_popover_row.py
 #
 # Copyright 2021-2025 Andrey Maksimov
 #
@@ -26,19 +26,30 @@
 # use or other dealings in this Software without prior written
 # authorization.
 
-import os
+from gi.repository import Gtk, GObject
 
-APP_ID = "com.github.tenderowl.frog"
-RESOURCE_PREFIX = "/com/github/tenderowl/frog"
+from lens.config import RESOURCE_PREFIX
+from lens.types.language_item import LanguageItem
 
-# This is based from the XDG Base Directory specification.
-if not os.getenv('XDG_DATA_HOME'):
-    os.environ['XDG_DATA_HOME'] = os.path.expanduser('~/.local/share')
 
-if not os.path.exists(os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata')):
-    os.mkdir(os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata'))
+@Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/language_popover_row.ui")
+class LanguagePopoverRow(Gtk.ListBoxRow):
+    __gtype_name__ = 'LanguagePopoverRow'
 
-tessdata_url = "https://github.com/tesseract-ocr/tessdata/raw/main/"
-tessdata_best_url = "https://github.com/tesseract-ocr/tessdata_best/raw/main/"
-tessdata_dir = os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata')
-tessdata_config = f'--tessdata-dir {tessdata_dir} –psm 0 --oem 1'
+    lang: LanguageItem
+
+    # Widgets
+    title: Gtk.Label = Gtk.Template.Child()
+    selection: Gtk.Image = Gtk.Template.Child()
+
+    def __init__(self, lang: LanguageItem):
+        super().__init__()
+        self.lang = lang
+        self.title.set_label(self.lang.title)
+
+        self.lang.bind_property(
+            'selected',
+            self.selection,
+            'visible',
+            GObject.BindingFlags.SYNC_CREATE
+        )

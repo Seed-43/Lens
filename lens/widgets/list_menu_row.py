@@ -1,8 +1,6 @@
-#!@PYTHON@
-
-# frog.in
+# list_menu_row.py
 #
-# Copyright 2021-2023 Andrey Maksimov
+# Copyright 2021-2025 Andrey Maksimov
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -28,33 +26,28 @@
 # use or other dealings in this Software without prior written
 # authorization.
 
-import os
-import sys
-import signal
-import gettext
-import locale
+from gi.repository import Gtk, GObject
 
-VERSION = '@VERSION@'
-pkgdatadir = '@pkgdatadir@'
-localedir = '@localedir@'
-project_name = '@projectname@'
-
-sys.path.insert(1, pkgdatadir)
-signal.signal(signal.SIGINT, signal.SIG_DFL)
-
-# L10n
-locale.textdomain(project_name)
-locale.bindtextdomain(project_name, localedir)
-gettext.textdomain(project_name)
-gettext.bindtextdomain(project_name, localedir)
+from lens.types.language_item import LanguageItem
 
 
-if __name__ == '__main__':
-    import gi
+class ListMenuRow(Gtk.Label):
+    __gtype_name__ = 'ListMenuRow'
 
-    from gi.repository import Gio
-    resource = Gio.Resource.load(os.path.join(pkgdatadir, '@appid@.gresource'))
-    resource._register()
+    _item: LanguageItem | None
 
-    from frog import main
-    sys.exit(main.main(VERSION))
+    def __init__(self, item: LanguageItem):
+        super(ListMenuRow, self).__init__()
+
+        self.item = item
+
+    @GObject.Property(type=GObject.TYPE_PYOBJECT)
+    def item(self) -> LanguageItem:
+        return self._item
+
+    @item.setter
+    def item(self, item: LanguageItem):
+        self._item = item
+
+        self.set_label(item.title)
+        self.set_halign(Gtk.Align.START)

@@ -1,15 +1,15 @@
-project('frog',
+project('lens',
           version: '1.6.0',
     meson_version: '>= 1.5.0',
   default_options: [ 'warning_level=2',
                    ],
 )
 
-author = 'tenderowl'
+author = 'seed43'
 domain = 'com.github'
 # app_id built as: domain.author.project_name
 gitrepo = 'https://github.com/'+author+'/'+meson.project_name()
-website = 'https://getfrog.app'
+website = 'https://getlens.app'
 
 
 i18n = import('i18n')
@@ -25,7 +25,7 @@ pythondir = python.get_install_dir()
 localedir = join_paths(prefix, get_option('localedir'))
 
 
-install_subdir('frog', install_dir: pythondir)
+install_subdir('lens', install_dir: pythondir)
 subdir('bin')
 subdir('data')
 subdir('po')

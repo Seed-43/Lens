@@ -1,4 +1,6 @@
-# Copyright 2023-2025 Andrey Maksimov
+# clipboard_service.py
+#
+# Copyright 2021-2025 Andrey Maksimov
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -26,31 +28,41 @@
 
 from gettext import gettext as _
 
-from gi.repository import Gtk, GLib
+from gi.repository import Gdk, GObject, Gio
+from loguru import logger
 
-from frog.config import RESOURCE_PREFIX
+from lens.services.telemetry import telemetry
 
 
-@Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/share_row.ui")
-class ShareRow(Gtk.ListBoxRow):
-    __gtype_name__ = "ShareRow"
+class ClipboardService(GObject.GObject):
+    __gtype_name__ = 'ClipboardService'
 
-    box: Gtk.Box = Gtk.Template.Child()
-    image: Gtk.Image = Gtk.Template.Child()
-    label: Gtk.Label = Gtk.Template.Child()
+    __gsignals__ = {
+        'paste_from_clipboard': (GObject.SIGNAL_RUN_FIRST, None, (Gdk.Texture,)),
+        'error': (GObject.SIGNAL_RUN_FIRST, None, (str,))
+    }
 
-    provider_name: str = 'email'
+    clipboard: Gdk.Clipboard = Gdk.Display.get_default().get_clipboard()
 
-    def __init__(self, provider_name: str):
+    def __init__(self):
         super().__init__()
 
-        self.provider_name = provider_name or 'email'
-        self.box.set_tooltip_text(_("Share via {0}".format(provider_name.capitalize())))
-        self.label.set_label(provider_name.capitalize())
-        self.image.set_from_icon_name(f"share-{self.provider_name.lower()}-symbolic")
+    def set(self, value: str) -> None:
+        self.clipboard.set(value)
+        telemetry.capture('clipboard set')
 
-    @Gtk.Template.Callback()
-    def _on_released(self, *args):
-        self.activate_action(
-            "window.share", GLib.Variant.new_string(self.provider_name)
-        )
+    def _on_read_texture(self, _sender: GObject.GObject, result: Gio.AsyncResult) -> None:
+        try:
+            texture = self.clipboard.read_texture_finish(result)
+        except Exception as e:
+            logger.debug(e)
+            return self.emit('error', _("No image in clipboard"))
+        self.emit('paste_from_clipboard', texture)
+
+    def read_texture(self) -> None:
+        telemetry.capture('clipboard read texture')
+        self.clipboard.read_texture_async(cancellable=None,
+                                          callback=self._on_read_texture)
+
+
+clipboard_service = ClipboardService()

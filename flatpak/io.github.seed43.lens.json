@@ -1,9 +1,9 @@
 {
-    "app-id" : "com.github.tenderowl.frog",
+    "app-id" : "io.github.seed43.lens",
     "runtime" : "org.gnome.Platform",
     "runtime-version" : "48",
     "sdk" : "org.gnome.Sdk",
-    "command" : "frog",
+    "command" : "lens",
     "finish-args" : [
         "--share=network",
         "--share=ipc",
@@ -44,7 +44,7 @@
         "python3-modules.json",
         "python3-gTTS.json",
         {
-            "name" : "frog",
+            "name" : "lens",
             "builddir" : true,
             "buildsystem" : "meson",
             "sources" : [

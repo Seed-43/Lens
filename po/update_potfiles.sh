@@ -1,8 +1,8 @@
 #!/bin/bash
 
 DOMAIN_EXTENSION="com.github"
-AUTHOR="tenderowl"
-APPNAME="frog"
+AUTHOR="seed43"
+APPNAME="lens"
 APPID="${DOMAIN_EXTENSION}.${AUTHOR}.${APPNAME}"
 
 if [ "$1" == "-h" ]; then

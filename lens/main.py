@@ -35,17 +35,17 @@ import nanoid
 from gi.repository import Gtk, Gio, GLib, Notify, Adw, GdkPixbuf, Gdk, GObject
 from loguru import logger
 
-from frog.config import RESOURCE_PREFIX, APP_ID
-from frog.language_manager import language_manager
-from frog.services.clipboard_service import clipboard_service
-from frog.services.screenshot_service import ScreenshotService
-from frog.services.telemetry import telemetry
-from frog.settings import Settings
-from frog.window import FrogWindow
+from lens.config import RESOURCE_PREFIX, APP_ID
+from lens.language_manager import language_manager
+from lens.services.clipboard_service import clipboard_service
+from lens.services.screenshot_service import ScreenshotService
+from lens.services.telemetry import telemetry
+from lens.settings import Settings
+from lens.window import LensWindow
 
 
-class FrogApplication(Adw.Application):
-    __gtype_name__ = 'FrogApplication'
+class LensApplication(Adw.Application):
+    __gtype_name__ = 'LensApplication'
     gtk_settings: Gtk.Settings
 
     settings: Settings = GObject.Property(type=GObject.TYPE_PYOBJECT)
@@ -76,7 +76,7 @@ class FrogApplication(Adw.Application):
         language_manager.init_tessdata()
 
         # Initialize libnotify.
-        Notify.init("Frog")
+        Notify.init("Lens")
 
     def do_startup(self, *args, **kwargs):
         Adw.Application.do_startup(self)
@@ -92,7 +92,7 @@ class FrogApplication(Adw.Application):
         shortcut_entry.arg_description = None
 
         self.backend = ScreenshotService()
-        self.backend.connect('decoded', FrogApplication.on_decoded)
+        self.backend.connect('decoded', LensApplication.on_decoded)
 
         action = Gio.SimpleAction.new("show_uri", GLib.VariantType.new('s'))
         action.connect("activate", self.on_show_uri)
@@ -117,7 +117,7 @@ class FrogApplication(Adw.Application):
     def do_activate(self):
         win = self.props.active_window
         if not win:
-            win = FrogWindow(application=self)
+            win = LensWindow(application=self)
         win.present()
 
     def do_command_line(self, command_line):
@@ -159,22 +159,22 @@ class FrogApplication(Adw.Application):
     def on_github_star(self, _action, _param) -> None:
         telemetry.capture('star github activated')
         launcher: Gtk.UriLauncher = Gtk.UriLauncher()
-        launcher.set_uri('https://github.com/TenderOwl/Frog')
+        launcher.set_uri('https://github.com/TenderOwl/Lens')
         launcher.launch(callback=self._on_github_star)
 
     def on_about(self, _action, _param):
         telemetry.capture('about activated')
         about_window = Adw.AboutDialog(
-            application_name="Frog",
+            application_name="Lens",
             application_icon=APP_ID,
             version=self.version,
             copyright=f'© {datetime.date.today().year} Tender Owl',
-            website="https://getfrog.app",
-            issue_url="https://github.com/TenderOwl/Frog/issues/new",
+            website="https://getlens.app",
+            issue_url="https://github.com/TenderOwl/Lens/issues/new",
             license_type=Gtk.License.MIT_X11,
             developer_name="TenderOwl Team",
             developers=["Andrey Maksimov"],
-            release_notes="""<p>Frog has been updated to version 1.6.0! This release includes a number of improvements and bug fixes. Thank you for your continued 
+            release_notes="""<p>Lens has been updated to version 1.6.0! This release includes a number of improvements and bug fixes. Thank you for your continued 
 support!</p>
                 <ul>
                     <li>Improved user interface.</li>
@@ -220,13 +220,13 @@ support!</p>
     @staticmethod
     def on_decoded(_sender, text: str, copy: bool) -> None:
         icon = GdkPixbuf.Pixbuf.new_from_resource_at_scale(
-            f"{RESOURCE_PREFIX}/icons/com.github.tenderowl.frog.svg",
+            f"{RESOURCE_PREFIX}/icons/io.github.seed43.lens.svg",
             128, 128, True
         )
 
         if not text:
             notification: Notify.Notification = Notify.Notification.new(
-                summary='Frog',
+                summary='Lens',
                 body=_("No text found. Try to grab another region.")
             )
             notification.set_icon_from_pixbuf(icon)
@@ -236,7 +236,7 @@ support!</p>
             clipboard_service.set(text)
 
             notification: Notify.Notification = Notify.Notification.new(
-                summary='Frog',
+                summary='Lens',
                 body=_("Text extracted. You can paste it with Ctrl+V")
             )
             notification.set_icon_from_pixbuf(icon)
@@ -272,5 +272,5 @@ support!</p>
 
 def main(version):
     asyncio.set_event_loop_policy(GLibEventLoopPolicy())
-    app = FrogApplication(version)
+    app = LensApplication(version)
     return app.run(sys.argv)

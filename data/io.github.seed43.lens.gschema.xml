@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<schemalist gettext-domain="frog">
-  <schema id="com.github.tenderowl.frog" path="/com/github/tenderowl/frog/">
+<schemalist gettext-domain="lens">
+  <schema id="io.github.seed43.lens" path="/com/github/seed43/lens/">
     <key name="installation-id" type="s">
       <default>""</default>
       <summary>App Installation ID</summary>

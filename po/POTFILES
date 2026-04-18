@@ -1,5 +1,5 @@
-data/com.github.tenderowl.frog.appdata.xml.in
-data/com.github.tenderowl.frog.desktop.in
+data/io.github.seed43.lens.appdata.xml.in
+data/io.github.seed43.lens.desktop.in
 data/ui/extracted_page.blp
 data/ui/language_dialog.blp
 data/ui/language_popover.blp
@@ -9,10 +9,10 @@ data/ui/preferences_languages.blp
 data/ui/share_row.blp
 data/ui/shortcuts.blp
 data/ui/welcome_page.blp
-frog/language_manager.py
-frog/main.py
-frog/services/clipboard_service.py
-frog/services/screenshot_service.py
-frog/widgets/preferences_languages_page.py
-frog/widgets/share_row.py
-frog/window.py
+lens/language_manager.py
+lens/main.py
+lens/services/clipboard_service.py
+lens/services/screenshot_service.py
+lens/widgets/preferences_languages_page.py
+lens/widgets/share_row.py
+lens/window.py

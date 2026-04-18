@@ -29,11 +29,11 @@
 from gi.repository import Adw
 from gi.repository import Gtk, Gdk
 
-from frog.config import RESOURCE_PREFIX, APP_ID
-from frog.language_manager import language_manager
-from frog.services.telemetry import telemetry
-from frog.types.language_item import LanguageItem
-from frog.widgets.language_popover import LanguagePopover
+from lens.config import RESOURCE_PREFIX, APP_ID
+from lens.language_manager import language_manager
+from lens.services.telemetry import telemetry
+from lens.types.language_item import LanguageItem
+from lens.widgets.language_popover import LanguagePopover
 
 
 @Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/welcome_page.ui")

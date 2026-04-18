@@ -35,20 +35,20 @@ from urllib.parse import urlparse
 from gi.repository import Gtk, Adw, Gio, GLib, Gdk, GObject
 from loguru import logger
 
-from frog.gobject_worker import GObjectWorker
-from frog.language_manager import language_manager
-from frog.services.clipboard_service import clipboard_service, ClipboardService
-from frog.services.screenshot_service import ScreenshotService
-from frog.services.share_service import ShareService
-from frog.widgets.extracted_page import ExtractedPage
-from frog.widgets.list_menu_row import ListMenuRow
-from frog.widgets.preferences_dialog import PreferencesDialog
-from frog.widgets.welcome_page import WelcomePage
+from lens.gobject_worker import GObjectWorker
+from lens.language_manager import language_manager
+from lens.services.clipboard_service import clipboard_service, ClipboardService
+from lens.services.screenshot_service import ScreenshotService
+from lens.services.share_service import ShareService
+from lens.widgets.extracted_page import ExtractedPage
+from lens.widgets.list_menu_row import ListMenuRow
+from lens.widgets.preferences_dialog import PreferencesDialog
+from lens.widgets.welcome_page import WelcomePage
 
 
-@Gtk.Template(resource_path="/com/github/tenderowl/frog/ui/window.ui")
-class FrogWindow(Adw.ApplicationWindow):
-    __gtype_name__ = "FrogWindow"
+@Gtk.Template(resource_path="/com/github/seed43/lens/ui/window.ui")
+class LensWindow(Adw.ApplicationWindow):
+    __gtype_name__ = "LensWindow"
 
     gtk_settings: Gtk.Settings = Gtk.Settings.get_default()
 

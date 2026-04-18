@@ -31,7 +31,7 @@ from urllib.parse import quote
 from gi.repository import GObject, Gtk
 from loguru import logger
 
-from frog.services.telemetry import telemetry
+from lens.services.telemetry import telemetry
 
 
 class ShareService(GObject.GObject):

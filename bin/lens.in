@@ -1,6 +1,8 @@
-# language_popover_row.py
+#!@PYTHON@
+
+# lens.in
 #
-# Copyright 2021-2025 Andrey Maksimov
+# Copyright 2021-2023 Andrey Maksimov
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -26,30 +28,33 @@
 # use or other dealings in this Software without prior written
 # authorization.
 
-from gi.repository import Gtk, GObject
+import os
+import sys
+import signal
+import gettext
+import locale
 
-from frog.config import RESOURCE_PREFIX
-from frog.types.language_item import LanguageItem
+VERSION = '@VERSION@'
+pkgdatadir = '@pkgdatadir@'
+localedir = '@localedir@'
+project_name = '@projectname@'
+
+sys.path.insert(1, pkgdatadir)
+signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+# L10n
+locale.textdomain(project_name)
+locale.bindtextdomain(project_name, localedir)
+gettext.textdomain(project_name)
+gettext.bindtextdomain(project_name, localedir)
 
 
-@Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/language_popover_row.ui")
-class LanguagePopoverRow(Gtk.ListBoxRow):
-    __gtype_name__ = 'LanguagePopoverRow'
+if __name__ == '__main__':
+    import gi
 
-    lang: LanguageItem
+    from gi.repository import Gio
+    resource = Gio.Resource.load(os.path.join(pkgdatadir, '@appid@.gresource'))
+    resource._register()
 
-    # Widgets
-    title: Gtk.Label = Gtk.Template.Child()
-    selection: Gtk.Image = Gtk.Template.Child()
-
-    def __init__(self, lang: LanguageItem):
-        super().__init__()
-        self.lang = lang
-        self.title.set_label(self.lang.title)
-
-        self.lang.bind_property(
-            'selected',
-            self.selection,
-            'visible',
-            GObject.BindingFlags.SYNC_CREATE
-        )
+    from lens import main
+    sys.exit(main.main(VERSION))

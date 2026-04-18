@@ -4,10 +4,10 @@
          xmlns:gnome="http://api.gnome.org/doap-extensions#"
          xmlns="http://usefulinc.com/ns/doap#">
 
-    <name xml:lang="en">Frog</name>
+    <name xml:lang="en">Lens</name>
     <shortdesc xml:lang="en">Extract text from anywhere</shortdesc>
-    <homepage rdf:resource="https://github.com/TenderOwl/Frog/"/>
-    <bug-database rdf:resource="https://github.com/TenderOwl/Frog/issues"/>
+    <homepage rdf:resource="https://github.com/TenderOwl/Lens/"/>
+    <bug-database rdf:resource="https://github.com/TenderOwl/Lens/issues"/>
     <programming-language>Python</programming-language>
     <platform>GTK 4</platform>
     <platform>Libadwaita</platform>
@@ -15,7 +15,7 @@
     <maintainer>
         <foaf:Person>
             <foaf:name>Andrey Maksimov</foaf:name>
-            <foaf:mbox rdf:resource="mailto:andrey@tenderowl.com"/>
+            <foaf:mbox rdf:resource="mailto:andrey@seed43.com"/>
             <foaf:account>
                 <foaf:OnlineAccount>
                     <foaf:accountServiceHomepage rdf:resource="https://github.com"/>

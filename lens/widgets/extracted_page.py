@@ -29,13 +29,13 @@
 from gi.repository import Gtk, GObject, Adw
 from loguru import logger
 
-from frog.config import RESOURCE_PREFIX
-from frog.gobject_worker import GObjectWorker
-from frog.services.share_service import ShareService
-from frog.services.telemetry import telemetry
-from frog.services.tts import ttsservice, TTSService
-from frog.settings import Settings
-from frog.widgets.share_row import ShareRow
+from lens.config import RESOURCE_PREFIX
+from lens.gobject_worker import GObjectWorker
+from lens.services.share_service import ShareService
+from lens.services.telemetry import telemetry
+from lens.services.tts import ttsservice, TTSService
+from lens.settings import Settings
+from lens.widgets.share_row import ShareRow
 
 
 @Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/extracted_page.ui")

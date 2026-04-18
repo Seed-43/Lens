@@ -36,10 +36,10 @@ from urllib import request
 from gi.repository import GObject
 from loguru import logger
 
-from frog.config import tessdata_dir, tessdata_url, tessdata_best_url
-from frog.gobject_worker import GObjectWorker
-from frog.types.download_state import DownloadState
-from frog.types.language_item import LanguageItem
+from lens.config import tessdata_dir, tessdata_url, tessdata_best_url
+from lens.gobject_worker import GObjectWorker
+from lens.types.download_state import DownloadState
+from lens.types.language_item import LanguageItem
 
 
 class LanguageManager(GObject.GObject):

@@ -31,8 +31,8 @@ from gettext import gettext as _
 from gi.repository import GObject, Gio, GLib, Xdp
 from loguru import logger
 
-from frog.config import tessdata_config
-from frog.services.telemetry import telemetry
+from lens.config import tessdata_config
+from lens.services.telemetry import telemetry
 
 try:
     from PIL import Image

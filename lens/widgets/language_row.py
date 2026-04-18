@@ -29,9 +29,9 @@
 from gi.repository import Gtk, GLib, GObject
 from loguru import logger
 
-from frog.config import RESOURCE_PREFIX
-from frog.language_manager import language_manager
-from frog.types.language_item import LanguageItem
+from lens.config import RESOURCE_PREFIX
+from lens.language_manager import language_manager
+from lens.types.language_item import LanguageItem
 
 
 @Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/language_row.ui")

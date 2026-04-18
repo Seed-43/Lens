@@ -30,12 +30,12 @@ from gettext import gettext as _
 
 from gi.repository import Gtk, Adw, Gio
 
-from frog.config import RESOURCE_PREFIX
-from frog.language_manager import language_manager
-from frog.services.telemetry import telemetry
-from frog.settings import Settings
-from frog.types.language_item import LanguageItem
-from frog.widgets.language_row import LanguageRow
+from lens.config import RESOURCE_PREFIX
+from lens.language_manager import language_manager
+from lens.services.telemetry import telemetry
+from lens.settings import Settings
+from lens.types.language_item import LanguageItem
+from lens.widgets.language_row import LanguageRow
 
 
 @Gtk.Template(resource_path=f'{RESOURCE_PREFIX}/ui/preferences_languages.ui')

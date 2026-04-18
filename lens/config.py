@@ -1,4 +1,4 @@
-# list_menu_row.py
+# config.py
 #
 # Copyright 2021-2025 Andrey Maksimov
 #
@@ -26,28 +26,19 @@
 # use or other dealings in this Software without prior written
 # authorization.
 
-from gi.repository import Gtk, GObject
+import os
 
-from frog.types.language_item import LanguageItem
+APP_ID = "io.github.seed43.lens"
+RESOURCE_PREFIX = "/com/github/seed43/lens"
 
+# This is based from the XDG Base Directory specification.
+if not os.getenv('XDG_DATA_HOME'):
+    os.environ['XDG_DATA_HOME'] = os.path.expanduser('~/.local/share')
 
-class ListMenuRow(Gtk.Label):
-    __gtype_name__ = 'ListMenuRow'
+if not os.path.exists(os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata')):
+    os.mkdir(os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata'))
 
-    _item: LanguageItem | None
-
-    def __init__(self, item: LanguageItem):
-        super(ListMenuRow, self).__init__()
-
-        self.item = item
-
-    @GObject.Property(type=GObject.TYPE_PYOBJECT)
-    def item(self) -> LanguageItem:
-        return self._item
-
-    @item.setter
-    def item(self, item: LanguageItem):
-        self._item = item
-
-        self.set_label(item.title)
-        self.set_halign(Gtk.Align.START)
+tessdata_url = "https://github.com/tesseract-ocr/tessdata/raw/main/"
+tessdata_best_url = "https://github.com/tesseract-ocr/tessdata_best/raw/main/"
+tessdata_dir = os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata')
+tessdata_config = f'--tessdata-dir {tessdata_dir} –psm 0 --oem 1'

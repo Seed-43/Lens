@@ -1,4 +1,4 @@
-# settings.py
+# preferences_dialog.py
 #
 # Copyright 2021-2025 Andrey Maksimov
 #
@@ -26,25 +26,33 @@
 # use or other dealings in this Software without prior written
 # authorization.
 
-from gi.repository import Gio
+from gi.repository import Gtk, Adw, GObject
 
-from frog.config import APP_ID
+from lens.config import RESOURCE_PREFIX
+from lens.services.telemetry import telemetry
+from lens.widgets.preferences_general_page import PreferencesGeneralPage
+from lens.widgets.preferences_languages_page import PreferencesLanguagesPage
 
 
-class Settings(Gio.Settings):
-    """Settings
-    """
-    __gtype_name__ = 'Settings'
+@Gtk.Template(resource_path=f'{RESOURCE_PREFIX}/ui/preferences_dialog.ui')
+class PreferencesDialog(Adw.PreferencesDialog):
+    __gtype_name__ = 'PreferencesDialog'
+
+    general_page: PreferencesGeneralPage = Gtk.Template.Child()
+    languages_page: PreferencesLanguagesPage = Gtk.Template.Child()
 
     def __init__(self):
-        """Init Settings
-        """
-        Gio.Settings.__init__(self)
+        super().__init__()
 
-    @classmethod
-    def new(cls, **kwargs) -> 'Settings':
-        """Return a new Settings object
-        """
-        settings = Gio.Settings.new(APP_ID)
-        settings.__class__ = Settings
-        return settings
+        self.connect('show', lambda x: telemetry.capture_page_view('preferences'))
+
+
+class LanguageItem(GObject.GObject):
+    title: str
+    code: str
+    progress: int = 0
+
+    def __init__(self, code: str, title: str):
+        GObject.GObject.__init__(self)
+        self.title = title
+        self.code = code
