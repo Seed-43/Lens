@@ -31,7 +31,6 @@ from loguru import logger
 
 from lens.config import RESOURCE_PREFIX
 from lens.language_manager import language_manager
-from lens.services.telemetry import telemetry
 from lens.settings import Settings
 from lens.types.language_item import LanguageItem
 from lens.widgets.language_popover_row import LanguagePopoverRow
@@ -71,7 +70,6 @@ class LanguagePopover(Gtk.Popover):
         # self.populate_model()
         self.bind_model()
 
-        self.connect('show', lambda x: telemetry.capture_page_view('language_popover'))
 
     def bind_model(self):
         self.filter = Gtk.CustomFilter()
@@ -98,7 +96,6 @@ class LanguagePopover(Gtk.Popover):
 
     @Gtk.Template.Callback()
     def _on_search_activate(self, entry: Gtk.SearchEntry):
-        telemetry.capture('language_search activated')
         self._on_language_activate(self.list_view, 0)
 
     @Gtk.Template.Callback()
@@ -107,7 +104,6 @@ class LanguagePopover(Gtk.Popover):
         self.emit('language-changed', item)
         self.active_language = item.code
         language_manager.active_language = item
-        telemetry.capture('language-activated', {'language': self.active_language})
         self.popdown()
 
     @Gtk.Template.Callback()

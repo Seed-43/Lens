@@ -31,7 +31,6 @@ from gi.repository import Gtk, Gdk
 
 from lens.config import RESOURCE_PREFIX, APP_ID
 from lens.language_manager import language_manager
-from lens.services.telemetry import telemetry
 from lens.types.language_item import LanguageItem
 from lens.widgets.language_popover import LanguagePopover
 
@@ -60,7 +59,6 @@ class WelcomePage(Adw.NavigationPage):
         )
 
     def do_showing(self):
-        telemetry.capture_page_view('welcome')
 
     def _on_language_changed(self, _: LanguagePopover, language: LanguageItem):
         self.lang_combo.set_label(language.title)

@@ -30,7 +30,6 @@ from loguru import logger
 
 from lens.config import RESOURCE_PREFIX
 from lens.language_manager import language_manager
-from lens.services.telemetry import telemetry
 from lens.settings import Settings
 
 
@@ -41,7 +40,6 @@ class PreferencesGeneralPage(Adw.PreferencesPage):
     extra_language_combo: Adw.ComboRow = Gtk.Template.Child()
     autocopy_switch: Adw.SwitchRow = Gtk.Template.Child()
     autolinks_switch: Adw.SwitchRow = Gtk.Template.Child()
-    telemetry_switch: Adw.SwitchRow = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
@@ -50,7 +48,6 @@ class PreferencesGeneralPage(Adw.PreferencesPage):
 
         self.settings.bind('autocopy', self.autocopy_switch, 'active', Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind('autolinks', self.autolinks_switch, 'active', Gio.SettingsBindFlags.DEFAULT)
-        self.settings.bind('telemetry', self.telemetry_switch, 'active', Gio.SettingsBindFlags.DEFAULT)
 
         downloaded_langs = language_manager.get_downloaded_languages()
         # Fill second language
@@ -61,7 +58,6 @@ class PreferencesGeneralPage(Adw.PreferencesPage):
         self.extra_language_combo.connect('notify::selected-item', self._on_extra_language_changed)
 
     def do_show(self, *args, **kwargs):
-        telemetry.capture_page_view('preferences_general')
 
     def _on_extra_language_changed(self, combo_row: Adw.ComboRow, _param):
         lang_name = combo_row.get_selected_item().get_string()

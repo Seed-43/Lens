@@ -31,7 +31,6 @@ from urllib.parse import quote
 from gi.repository import GObject, Gtk
 from loguru import logger
 
-from lens.services.telemetry import telemetry
 
 
 class ShareService(GObject.GObject):
@@ -57,7 +56,6 @@ class ShareService(GObject.GObject):
         ]
 
     def share(self, provider: str, text: str):
-        telemetry.capture("share", {'provider': provider})
         if not text:
             return
 

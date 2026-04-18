@@ -32,7 +32,6 @@ from loguru import logger
 from lens.config import RESOURCE_PREFIX
 from lens.gobject_worker import GObjectWorker
 from lens.services.share_service import ShareService
-from lens.services.telemetry import telemetry
 from lens.services.tts import ttsservice, TTSService
 from lens.settings import Settings
 from lens.widgets.share_row import ShareRow
@@ -86,7 +85,6 @@ class ExtractedPage(Adw.NavigationPage):
         self.emit("go-back", 1)
 
     def do_showing(self) -> None:
-        telemetry.capture_page_view('extracted')
 
     @GObject.Property(type=str)
     def extracted_text(self) -> str:

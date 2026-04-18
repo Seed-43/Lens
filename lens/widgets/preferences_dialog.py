@@ -29,7 +29,6 @@
 from gi.repository import Gtk, Adw, GObject
 
 from lens.config import RESOURCE_PREFIX
-from lens.services.telemetry import telemetry
 from lens.widgets.preferences_general_page import PreferencesGeneralPage
 from lens.widgets.preferences_languages_page import PreferencesLanguagesPage
 
@@ -44,7 +43,6 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def __init__(self):
         super().__init__()
 
-        self.connect('show', lambda x: telemetry.capture_page_view('preferences'))
 
 
 class LanguageItem(GObject.GObject):

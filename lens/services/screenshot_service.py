@@ -32,7 +32,6 @@ from gi.repository import GObject, Gio, GLib, Xdp
 from loguru import logger
 
 from lens.config import tessdata_config
-from lens.services.telemetry import telemetry
 
 try:
     from PIL import Image
@@ -83,7 +82,6 @@ class ScreenshotService(GObject.GObject):
 
         If image is not recognized, returns None.
         """
-        telemetry.capture('screenshot capture', {'language': lang})
         self.portal.take_screenshot(
             None,
             Xdp.ScreenshotFlags.INTERACTIVE,
@@ -157,5 +155,4 @@ class ScreenshotService(GObject.GObject):
             self.emit("error", "No text found.")
 
     def capture_cancelled(self, cancellable: Gio.Cancellable) -> None:
-        telemetry.capture('screenshot cancelled')
         self.emit("error", "Cancelled")

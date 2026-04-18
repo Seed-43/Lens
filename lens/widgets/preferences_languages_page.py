@@ -32,7 +32,6 @@ from gi.repository import Gtk, Adw, Gio
 
 from lens.config import RESOURCE_PREFIX
 from lens.language_manager import language_manager
-from lens.services.telemetry import telemetry
 from lens.settings import Settings
 from lens.types.language_item import LanguageItem
 from lens.widgets.language_row import LanguageRow
@@ -76,7 +75,6 @@ class PreferencesLanguagesPage(Adw.PreferencesPage):
         self.check_connection()
 
     def do_show(self):
-        telemetry.capture_page_view('preferences_languages')
 
     def check_connection(self):
         # Check for access to GitHub

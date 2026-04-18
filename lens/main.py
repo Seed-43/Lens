@@ -31,7 +31,6 @@ import datetime
 import sys
 from gettext import gettext as _
 
-import nanoid
 from gi.repository import Gtk, Gio, GLib, Notify, Adw, GdkPixbuf, Gdk, GObject
 from loguru import logger
 
@@ -39,7 +38,6 @@ from lens.config import RESOURCE_PREFIX, APP_ID
 from lens.language_manager import language_manager
 from lens.services.clipboard_service import clipboard_service
 from lens.services.screenshot_service import ScreenshotService
-from lens.services.telemetry import telemetry
 from lens.settings import Settings
 from lens.window import LensWindow
 
@@ -49,7 +47,6 @@ class LensApplication(Adw.Application):
     gtk_settings: Gtk.Settings
 
     settings: Settings = GObject.Property(type=GObject.TYPE_PYOBJECT)
-    installation_id: str = GObject.Property(type=str)
 
     def __init__(self, version=None):
         super().__init__(application_id=APP_ID,
@@ -59,9 +56,6 @@ class LensApplication(Adw.Application):
 
         # Init GSettings
         self.settings = Settings.new()
-
-        telemetry.set_is_active(self.settings.get_boolean('telemetry'))
-        self.ensure_installation_id()
 
         self.add_main_option(
             'extract_to_clipboard',
@@ -131,90 +125,53 @@ class LensApplication(Adw.Application):
         self.activate()
         return 0
 
-    def ensure_installation_id(self):
-        self.installation_id = self.settings.get_string("installation-id")
-        if not self.installation_id:
-            logger.info("No installation id was found. Generating a new one.")
-            self.installation_id = nanoid.generate()
-            self.settings.set_string("installation-id", self.installation_id)
-            telemetry.set_installation_id(self.installation_id)
-            telemetry.capture('new Installation ID generated')
-
-        telemetry.set_installation_id(self.installation_id)
-
     def on_settings_changed(self, settings, key):
         logger.debug('SETTINGS: {} changed', key)
-        if key == "telemetry":
-            value = settings.get_boolean(key)
-            if value:
-                telemetry.capture('telemetry activated')
-            else:
-                telemetry.capture('telemetry deactivated')
-            telemetry.set_is_active(value)
 
     def on_preferences(self, _action, _param) -> None:
-        telemetry.capture('preferences activated')
         self.get_active_window().show_preferences()
 
     def on_github_star(self, _action, _param) -> None:
-        telemetry.capture('star github activated')
         launcher: Gtk.UriLauncher = Gtk.UriLauncher()
-        launcher.set_uri('https://github.com/TenderOwl/Lens')
+        launcher.set_uri('https://github.com/Seed-43/Lens')
         launcher.launch(callback=self._on_github_star)
 
     def on_about(self, _action, _param):
-        telemetry.capture('about activated')
         about_window = Adw.AboutDialog(
             application_name="Lens",
             application_icon=APP_ID,
             version=self.version,
-            copyright=f'© {datetime.date.today().year} Tender Owl',
-            website="https://getlens.app",
-            issue_url="https://github.com/TenderOwl/Lens/issues/new",
+            copyright=f'© {datetime.date.today().year} Seed-43',
+            website="https://github.com/Seed-43/Lens",
+            issue_url="https://github.com/Seed-43/Lens/issues/new",
             license_type=Gtk.License.MIT_X11,
-            developer_name="TenderOwl Team",
-            developers=["Andrey Maksimov"],
-            release_notes="""<p>Lens has been updated to version 1.6.0! This release includes a number of improvements and bug fixes. Thank you for your continued 
-support!</p>
-                <ul>
-                    <li>Improved user interface.</li>
-                    <li>Translations available in Belarusian, Occidental and Tamil.</li>
-                    <li>Better performance and stability.</li>
-                </ul>
-                <p>We hope you enjoy our work!</p>
-            """
+            developer_name="Seed-43",
+            developers=["Seed-43"],
         )
         about_window.present(self.props.active_window)
 
     def on_shortcuts(self, _action, _param):
-        telemetry.capture('shortcuts activated')
         builder = Gtk.Builder()
         builder.add_from_resource(f"{RESOURCE_PREFIX}/ui/shortcuts.ui")
         builder.get_object("shortcuts").set_transient_for(self.get_active_window())
         builder.get_object("shortcuts").present()
 
     def on_copy_to_clipboard(self, _action, _param) -> None:
-        telemetry.capture('copy_to_clipboard activated')
         self.get_active_window().on_copy_to_clipboard(self)
 
     def on_show_uri(self, _action, param) -> None:
-        telemetry.capture('show_uri activated')
         Gtk.show_uri(None, param.get_string(), Gdk.CURRENT_TIME)
 
     def get_screenshot(self, _action, _param) -> None:
-        telemetry.capture('screenshot activated')
         self.get_active_window().get_screenshot()
 
     def get_screenshot_and_copy(self, _action, _param) -> None:
-        telemetry.capture('screenshot_and_copy activated')
         self.get_active_window().get_screenshot(copy=True)
 
     def open_image(self, _action, _param) -> None:
-        telemetry.capture('open_image activated')
         self.get_active_window().open_image()
 
     def on_paste_from_clipboard(self, _action, _param) -> None:
-        telemetry.capture('paste_from_clipboard activated')
         self.get_active_window().on_paste_from_clipboard(self)
 
     @staticmethod
