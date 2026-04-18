@@ -1,63 +1,57 @@
 # Lens
 
-> Intuitive text extraction tool (OCR) for GNOME.
+> A simple OCR tool for GNOME. Point it at anything on your screen and pull the text out.
 
-<a href="https://hosted.weblate.org/engage/lens/">
-<img src="https://hosted.weblate.org/widgets/lens/-/default/svg-badge.svg" alt="Translation status" />
-</a>
+## Features
 
+- Extract text from screenshots, images, PDFs, QR codes and more
+- Drag and drop image files directly onto the window
+- Paste images from clipboard
+- Auto-copy extracted text to clipboard
+- Automatically open URLs found in QR codes
+- Text-to-speech support
+- Share extracted text directly to email, Telegram, Mastodon and more
+- Multi-language OCR support via Tesseract
 
-<div align="center">
-<figure>
-<img src="https://github.com/user-attachments/assets/f292b6ce-b530-4e8e-b9db-8770a1e27946" alt="Lens window" />
-</figure>
-</div>
+## Installation
 
-Quickly extract text from almost any source: youtube, screencasts, PDFs, webpages, photos, etc.
-Grab the image and get the text.
+### Build from source (Flatpak)
 
-The Lens could help you to deal with QR codes helping you to get them decoded!
+Requirements:
+- `flatpak`
+- `flatpak-builder`
+- GNOME Platform runtime 49
 
+```bash
+flatpak install flathub org.gnome.Platform//49 org.gnome.Sdk//49
+flatpak-builder --user --install --force-clean build-dir flatpak/io.github.seed43.lens.json
+```
 
-## See it in action
+Then run:
+```bash
+flatpak run io.github.seed43.lens
+```
 
-<div align="center">
-<video controls src="https://user-images.githubusercontent.com/519146/226143395-74676db4-90ff-49b5-98af-35a284f327bb.webm" />
-</div>
+## Building for development
 
-## Get Lens
+The easiest way to develop Lens is with [GNOME Builder](https://wiki.gnome.org/Apps/Builder).
+Open the project folder in Builder and press **Execute** (F5).
 
-### Flathub
-<a href='https://flathub.org/apps/details/io.github.seed43.lens'><img width='240' alt='Download on Flathub' src='https://flathub.org/assets/badges/flathub-badge-en.png'/></a>
+Or manually with Meson:
+```bash
+meson setup build
+cd build
+ninja
+ninja install
+```
 
-### Snapcraft
-[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/lens)
+## License
 
-## :tada: Support
-If you like Lens and you want to support its development, you can buy me a coffee:
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
-<a href="https://www.buymeacoffee.com/seed43" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+Original work copyright © 2021-2025 Andrey Maksimov  
+Modifications copyright © 2026-present Seed-43
 
-## Building
+## Contributing
 
-I'm the guy who loves GUI tools instead of command-line thus I recommend using [Builder](https://wiki.gnome.org/Apps/Builder) to develop applications.
-To build the lens application just open project folder in Builder and press "Execute" (F5). It will download requirements and build the app.
-
-
-## Localization
-
-If you want to provide localization for your language you may use [weblate project](https://hosted.weblate.org/projects/lens/default/) or [Poedit](https://poedit.net) to create translations. Source files listed in `po/POTFILES`.
-
-## Code of conduct
-
-Lens follows the GNOME project [Code of Conduct](https://gitlab.gnome.org/World/amberol/-/blob/main/code-of-conduct.md). All
-communications in project spaces are expected to follow it.
-
-# Contribution
-
-Any help is appreciated :)
-
-# Thanks
-
-[JetBrains](https://www.jetbrains.com/) for supporting Open-Source projects  
-![JetBrains Logo (Main) logo](https://resources.jetbrains.com/storage/products/company/brand/logos/jb_beam.svg)
+Contributions are welcome! Feel free to open issues or pull requests on [GitHub](https://github.com/Seed-43/Lens).

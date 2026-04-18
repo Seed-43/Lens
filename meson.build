@@ -6,7 +6,7 @@ project('lens',
 )
 
 author = 'seed43'
-domain = 'com.github'
+domain = 'io.github'
 # app_id built as: domain.author.project_name
 gitrepo = 'https://github.com/'+author+'/'+meson.project_name()
 website = 'https://getlens.app'
