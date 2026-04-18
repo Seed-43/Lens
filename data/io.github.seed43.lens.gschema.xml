@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="lens">
-  <schema id="io.github.seed43.lens" path="/com/github/seed43/lens/">
+  <schema id="io.github.seed43.lens" path="/io/github/seed43/lens/">
     <!-- Window params -->
     <key name="window-width" type="i">
       <default>-1</default>

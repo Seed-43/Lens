@@ -1,40 +1,20 @@
 # main.py
 #
 # Copyright 2021-2025 Andrey Maksimov
+# Copyright 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# MIT License - see LICENSE file for details
+
 import asyncio
-from gi.events import GLibEventLoopPolicy
 import datetime
 import sys
 from gettext import gettext as _
 
-from gi.repository import Gtk, Gio, GLib, Notify, Adw, GdkPixbuf, Gdk, GObject
+from gi.events import GLibEventLoopPolicy
+from gi.repository import Adw, Gdk, GdkPixbuf, GLib, GObject, Gio, Gtk, Notify
 from loguru import logger
 
-from lens.config import RESOURCE_PREFIX, APP_ID
+from lens.config import APP_ID, RESOURCE_PREFIX
 from lens.language_manager import language_manager
 from lens.services.clipboard_service import clipboard_service
 from lens.services.screenshot_service import ScreenshotService
@@ -44,7 +24,6 @@ from lens.window import LensWindow
 
 class LensApplication(Adw.Application):
     __gtype_name__ = 'LensApplication'
-    gtk_settings: Gtk.Settings
 
     settings: Settings = GObject.Property(type=GObject.TYPE_PYOBJECT)
 
@@ -54,7 +33,6 @@ class LensApplication(Adw.Application):
         self.backend = None
         self.version = version
 
-        # Init GSettings
         self.settings = Settings.new()
 
         self.add_main_option(
@@ -66,24 +44,11 @@ class LensApplication(Adw.Application):
             None
         )
 
-        # Initialize tesseract data files storage.
         language_manager.init_tessdata()
-
-        # Initialize libnotify.
         Notify.init("Lens")
 
     def do_startup(self, *args, **kwargs):
         Adw.Application.do_startup(self)
-
-        # create command line option entries
-        shortcut_entry = GLib.OptionEntry()
-        shortcut_entry.long_name = 'extract_to_clipboard'
-        shortcut_entry.short_name = ord('e')
-        shortcut_entry.flags = 0
-        shortcut_entry.arg = GLib.OptionArg.NONE
-        shortcut_entry.arg_date = None
-        shortcut_entry.description = _("Extract directly into the clipboard")
-        shortcut_entry.arg_description = None
 
         self.backend = ScreenshotService()
         self.backend.connect('decoded', LensApplication.on_decoded)
@@ -92,15 +57,15 @@ class LensApplication(Adw.Application):
         action.connect("activate", self.on_show_uri)
         self.add_action(action)
 
+        # Note: get_screenshot and copy_to_clipboard use different shortcuts
         self.create_action('get_screenshot', self.get_screenshot, ['<primary>g'])
         self.create_action('get_screenshot_and_copy', self.get_screenshot_and_copy, ['<primary><shift>g'])
-        self.create_action('copy_to_clipboard', self.on_copy_to_clipboard, ['<primary>g'])
+        self.create_action('copy_to_clipboard', self.on_copy_to_clipboard, ['<primary>c'])
         self.create_action('open_image', self.open_image, ['<primary>o'])
         self.create_action('paste_from_clipboard', self.on_paste_from_clipboard, ['<primary>v'])
         self.create_action('listen', self.on_listen, ['<primary>l'])
         self.create_action('listen_cancel', self.on_listen_cancel, ['<primary><ctrl>l'])
         self.create_action('shortcuts', self.on_shortcuts, ['<primary>question'])
-
         self.create_action('quit', lambda *_: self.quit(), ['<primary>q', '<primary>w'])
         self.create_action('about', self.on_about)
         self.create_action('preferences', self.on_preferences, ['<primary>comma'])
@@ -132,7 +97,7 @@ class LensApplication(Adw.Application):
         self.get_active_window().show_preferences()
 
     def on_github_star(self, _action, _param) -> None:
-        launcher: Gtk.UriLauncher = Gtk.UriLauncher()
+        launcher = Gtk.UriLauncher()
         launcher.set_uri('https://github.com/Seed-43/Lens')
         launcher.launch(callback=self._on_github_star)
 
@@ -182,23 +147,22 @@ class LensApplication(Adw.Application):
         )
 
         if not text:
-            notification: Notify.Notification = Notify.Notification.new(
+            notification = Notify.Notification.new(
                 summary='Lens',
                 body=_("No text found. Try to grab another region.")
             )
             notification.set_icon_from_pixbuf(icon)
             notification.show()
+            return
 
         if copy:
             clipboard_service.set(text)
-
-            notification: Notify.Notification = Notify.Notification.new(
+            notification = Notify.Notification.new(
                 summary='Lens',
                 body=_("Text extracted. You can paste it with Ctrl+V")
             )
             notification.set_icon_from_pixbuf(icon)
             notification.show()
-
         else:
             logger.debug(f'{text}\n')
 
@@ -209,14 +173,7 @@ class LensApplication(Adw.Application):
         self.get_active_window().on_listen_cancel()
 
     def create_action(self, name, callback, shortcuts=None):
-        """Add an application action.
-
-        Args:
-            name: the name of the action
-            callback: the function to be called when the action is
-              activated
-            shortcuts: an optional list of accelerators
-        """
+        """Add an application action."""
         action = Gio.SimpleAction.new(name, None)
         action.connect("activate", callback)
         self.add_action(action)

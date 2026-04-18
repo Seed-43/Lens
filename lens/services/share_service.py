@@ -60,7 +60,7 @@ class ShareService(GObject.GObject):
             return
 
         text = text.strip()
-        if handler := getattr(self, f"get_link_{provider}"):
+        if handler := getattr(self, f"get_link_{provider}", None):
             try:
                 share_link: str = handler(quote(text))
                 self.launcher.set_uri(share_link)

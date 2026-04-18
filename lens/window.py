@@ -1,30 +1,9 @@
 # window.py
 #
 # Copyright 2021-2025 Andrey Maksimov
+# Copyright 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# MIT License - see LICENSE file for details
 
 from gettext import gettext as _
 from io import BytesIO
@@ -32,34 +11,28 @@ from mimetypes import guess_type
 from typing import List
 from urllib.parse import urlparse
 
-from gi.repository import Gtk, Adw, Gio, GLib, Gdk, GObject
+from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk
 from loguru import logger
 
+from lens.config import RESOURCE_PREFIX
 from lens.gobject_worker import GObjectWorker
 from lens.language_manager import language_manager
-from lens.services.clipboard_service import clipboard_service, ClipboardService
+from lens.services.clipboard_service import ClipboardService, clipboard_service
 from lens.services.screenshot_service import ScreenshotService
 from lens.services.share_service import ShareService
 from lens.widgets.extracted_page import ExtractedPage
-from lens.widgets.list_menu_row import ListMenuRow
 from lens.widgets.preferences_dialog import PreferencesDialog
 from lens.widgets.welcome_page import WelcomePage
 
 
-@Gtk.Template(resource_path="/com/github/seed43/lens/ui/window.ui")
+@Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/window.ui")
 class LensWindow(Adw.ApplicationWindow):
     __gtype_name__ = "LensWindow"
 
-    gtk_settings: Gtk.Settings = Gtk.Settings.get_default()
-
     toast_overlay: Adw.ToastOverlay = Gtk.Template.Child()
-
     split_view: Adw.NavigationSplitView = Gtk.Template.Child()
     welcome_page: WelcomePage = Gtk.Template.Child()
     extracted_page: ExtractedPage = Gtk.Template.Child()
-
-    # Helps to call save_window_state not more often than 500ms
-    delayed_state: bool = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -72,31 +45,18 @@ class LensWindow(Adw.ApplicationWindow):
             self.settings.get_string("active-language")
         )
 
-        # self.infobar = Gtk.InfoBar(visible=True, revealed=False)
-        # self.infobar.set_show_close_button(True)
-        # self.infobar.connect('response', self.on_infobar_response)
-        #
-        # self.infobar_label = Gtk.Label()
-        # self.infobar.add_child(self.infobar_label)
-        #
-        # self.main_leaflet.append(self.infobar)  # , False, True, 2)
-
         self.install_action("window.share", "s", self._on_share)
 
-        # Init drag-n-drop controller
-        drop_target_main: Gtk.DropTarget = Gtk.DropTarget.new(
-            type=Gdk.FileList, actions=Gdk.DragAction.COPY
-        )
-        drop_target_main.connect("drop", self.on_dnd_drop)
-        drop_target_main.connect("enter", self.on_dnd_enter)
-        drop_target_main.connect("leave", self.on_dnd_leave)
-        self.split_view.add_controller(drop_target_main)
+        # Drag-and-drop
+        drop_target = Gtk.DropTarget.new(type=Gdk.FileList, actions=Gdk.DragAction.COPY)
+        drop_target.connect("drop", self.on_dnd_drop)
+        drop_target.connect("enter", self.on_dnd_enter)
+        drop_target.connect("leave", self.on_dnd_leave)
+        self.split_view.add_controller(drop_target)
 
-        # Setup application
         self.props.default_width = self.settings.get_int("window-width")
         self.props.default_height = self.settings.get_int("window-height")
 
-        # Initialize screenshot backend
         self.backend = ScreenshotService()
         self.backend.connect("decoded", self.on_shot_done)
         self.backend.connect("error", self.on_shot_error)
@@ -114,32 +74,16 @@ class LensWindow(Adw.ApplicationWindow):
     def active_lang(self, lang_code: str):
         self.settings.set_string("active-language", lang_code)
 
-    def on_language_change(self, widget: Gtk.ListBox, row: Gtk.ListBoxRow) -> None:
-        child: ListMenuRow = row.get_child()
-        active_id = child.item.code if child.item else None
-
-        if active_id and active_id != "-1":
-            self.settings.set_string("active-language", active_id)
-            self.text_shot_btn.set_sensitive(True)
-            self.lang_combo.set_label(child.item.title)
-            widget.get_parent().get_parent().hide()
-        else:
-            self.text_shot_btn.set_sensitive(False)
+    def get_language(self) -> str:
+        self.active_lang = language_manager.active_language.code
+        extra_lang = self.settings.get_string("extra-language")
+        return f"{self.active_lang}+{extra_lang}"
 
     def get_screenshot(self, copy: bool = False) -> None:
         self.extracted_page.listen_cancel()
         lang = self.get_language()
         self.hide()
         self.backend.capture(lang, copy)
-
-    def get_language(self) -> str:
-        self.active_lang = language_manager.active_language.code
-        # Just in case. Probably better add primary language in settings
-        extra_lang = self.settings.get_string("extra-language")
-        # if self.active_lang != extra_lang:
-        #     self.active_lang = f'{self.active_lang}+{extra_lang}'
-
-        return f"{self.active_lang}+{extra_lang}"
 
     def on_shot_done(self, sender, text: str, copy: bool) -> None:
         is_url = self.uri_validator(text)
@@ -150,17 +94,11 @@ class LensWindow(Adw.ApplicationWindow):
                 clipboard_service.set(text)
                 self.show_toast(_("Text copied to clipboard"))
 
-            # If text is a URL we could show user Toast with suggestion to open it
-            # Or automatically open it, if this setting is set.
             if is_url:
                 if self.settings.get_boolean("autolinks"):
                     launcher = Gtk.UriLauncher.new(text)
-                    logger.debug("Launcher initialized")
                     launcher.launch()
-                    # Gtk.show_uri(None, text, Gdk.CURRENT_TIME)
-                    self.show_toast(
-                        _("QR-code URL opened"), priority=Adw.ToastPriority.HIGH
-                    )
+                    self.show_toast(_("QR-code URL opened"), priority=Adw.ToastPriority.HIGH)
                 else:
                     toast = Adw.Toast(
                         title=_("QR-code contains URL."),
@@ -174,7 +112,6 @@ class LensWindow(Adw.ApplicationWindow):
 
         except Exception as e:
             logger.debug(f"ERROR: {e}")
-
         finally:
             self.present()
             self.welcome_page.spinner.set_visible(False)
@@ -182,14 +119,13 @@ class LensWindow(Adw.ApplicationWindow):
     def on_shot_error(self, sender, message: str) -> None:
         self.present()
         self.welcome_page.spinner.set_visible(False)
-        if message:
+        if message and message != "Cancelled":
             self.show_toast(message)
-            # self.display_error(self, message)
 
     def open_image(self):
-        self.open_file_dlg: Gtk.FileDialog = Gtk.FileDialog()
+        self.open_file_dlg = Gtk.FileDialog()
 
-        file_filters: Gio.ListStore = Gio.ListStore.new(Gtk.FileFilter)
+        file_filters = Gio.ListStore.new(Gtk.FileFilter)
         file_filter = Gtk.FileFilter()
         file_filter.set_name(_("Supported image files"))
         file_filter.add_mime_type("image/png")
@@ -199,7 +135,6 @@ class LensWindow(Adw.ApplicationWindow):
 
         self.open_file_dlg.set_title(_("Open image to extract text"))
         self.open_file_dlg.set_filters(file_filters)
-
         self.open_file_dlg.open(self, None, self.on_open_image)
 
     def on_open_image(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
@@ -212,9 +147,7 @@ class LensWindow(Adw.ApplicationWindow):
             if not e.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
                 logger.debug(e)
 
-    def _on_paste_from_clipboard(
-            self, _clipboard: ClipboardService, texture: Gdk.Texture
-    ):
+    def _on_paste_from_clipboard(self, _clipboard: ClipboardService, texture: Gdk.Texture):
         pngbytes = BytesIO(texture.save_to_png_bytes().get_data())
         try:
             lang = self.get_language()
@@ -228,17 +161,15 @@ class LensWindow(Adw.ApplicationWindow):
         clipboard_service.read_texture()
 
     def on_listen(self):
-        if self.split_view.get_show_content():
-            return
-
-        self.extracted_page.listen()
+        if not self.split_view.get_show_content():
+            self.extracted_page.listen()
 
     def on_listen_cancel(self):
         self.extracted_page.listen_cancel()
 
     def display_error(self, sender, error) -> None:
-        logger.debug(f"Error happened: {error}")
-        message = (str(error).split(":")[-1]) if not isinstance(error, str) else error
+        logger.debug(f"Error: {error}")
+        message = str(error).split(":")[-1] if not isinstance(error, str) else error
         self.show_toast(message)
 
     def on_dnd_enter(self, drop_target, x, y):
@@ -263,29 +194,12 @@ class LensWindow(Adw.ApplicationWindow):
         self.welcome_page.spinner.set_visible(True)
         GObjectWorker.call(self.backend.decode_image, (lang, item.get_path()))
 
-    def on_configure_event(self, window, event):
-        if not self.delayed_state:
-            GLib.timeout_add(500, self.save_window_state, window)
-            self.delayed_state = True
-
-    def on_infobar_response(
-            self, infobar: Gtk.InfoBar, response_type: Gtk.ResponseType
-    ):
-        if response_type == Gtk.ResponseType.CLOSE:
-            self.infobar.set_revealed(False)
-
     def do_close_request(self) -> bool:
-        self.current_size = self.get_default_size()
-        self.settings.set_int("window-width", self.current_size[0])
-        self.settings.set_int("window-height", self.current_size[1])
+        size = self.get_default_size()
+        self.settings.set_int("window-width", size[0])
+        self.settings.set_int("window-height", size[1])
         self.settings.sync()
-        self.delayed_state = False
         return False
-
-    def on_window_delete_event(self, sender: Gtk.Widget = None) -> None:
-        if not self.is_maximized():
-            self.settings.set_int("window-width", self.current_size[0])
-            self.settings.set_int("window-height", self.current_size[1])
 
     def on_copy_to_clipboard(self, sender) -> None:
         text = self.extracted_page.extracted_text
@@ -293,8 +207,7 @@ class LensWindow(Adw.ApplicationWindow):
         self.show_toast(_("Text copied"))
 
     def show_preferences(self):
-        dialog = PreferencesDialog()
-        dialog.present(self)
+        PreferencesDialog().present(self)
 
     def show_welcome_page(self, *_):
         self.split_view.set_show_content(False)
@@ -302,17 +215,13 @@ class LensWindow(Adw.ApplicationWindow):
 
     def _on_share(self, _sender: Gtk.Widget, _action_name: str, provider: GLib.Variant):
         service = ShareService()
-        provider_name: str = provider.get_string().lower()
+        provider_name = provider.get_string().lower()
         text = self.extracted_page.extracted_text
         if provider_name in ShareService.providers() and text:
             service.share(provider_name, text)
 
-    def show_toast(
-            self,
-            title: str,
-            timeout: int = 2,
-            priority: Adw.ToastPriority = Adw.ToastPriority.NORMAL,
-    ):
+    def show_toast(self, title: str, timeout: int = 2,
+                   priority: Adw.ToastPriority = Adw.ToastPriority.NORMAL):
         self.toast_overlay.add_toast(
             Adw.Toast(title=title, timeout=timeout, priority=priority)
         )

@@ -1,6 +1,7 @@
 # preferences_languages_page.py
 #
 # Copyright 2021-2025 Andrey Maksimov
+# Copyright 2026-present Seed-43
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -75,6 +76,7 @@ class PreferencesLanguagesPage(Adw.PreferencesPage):
         self.check_connection()
 
     def do_show(self):
+        pass
 
     def check_connection(self):
         # Check for access to GitHub

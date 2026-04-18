@@ -1,35 +1,13 @@
 # welcome_page.py
 #
 # Copyright 2021-2025 Andrey Maksimov
+# Copyright 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# MIT License - see LICENSE file for details
 
-from gi.repository import Adw
-from gi.repository import Gtk, Gdk
+from gi.repository import Adw, Gdk, Gtk
 
-from lens.config import RESOURCE_PREFIX, APP_ID
+from lens.config import APP_ID, RESOURCE_PREFIX
 from lens.language_manager import language_manager
 from lens.types.language_item import LanguageItem
 from lens.widgets.language_popover import LanguagePopover
@@ -53,12 +31,12 @@ class WelcomePage(Adw.NavigationPage):
         self.language_popover.connect('language-changed', self._on_language_changed)
 
         self.settings = Gtk.Application.get_default().props.settings
-
         self.lang_combo.set_label(
             language_manager.get_language(self.settings.get_string("active-language"))
         )
 
-    def do_showing(self):
+    def do_showing(self) -> None:
+        pass
 
     def _on_language_changed(self, _: LanguagePopover, language: LanguageItem):
         self.lang_combo.set_label(language.title)

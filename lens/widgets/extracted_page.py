@@ -1,38 +1,17 @@
 # extracted_page.py
 #
 # Copyright 2021-2025 Andrey Maksimov
+# Copyright 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# MIT License - see LICENSE file for details
 
-from gi.repository import Gtk, GObject, Adw
+from gi.repository import Adw, GObject, Gtk
 from loguru import logger
 
 from lens.config import RESOURCE_PREFIX
 from lens.gobject_worker import GObjectWorker
 from lens.services.share_service import ShareService
-from lens.services.tts import ttsservice, TTSService
+from lens.services.tts import TTSService, ttsservice
 from lens.settings import Settings
 from lens.widgets.share_row import ShareRow
 
@@ -47,11 +26,6 @@ class ExtractedPage(Adw.NavigationPage):
         "on-listen-stop": (GObject.SIGNAL_RUN_LAST, None, ()),
     }
 
-    # lang_combo: Gtk.MenuButton = Gtk.Template.Child()
-    # language_popover: LanguagePopover = Gtk.Template.Child()
-    # listen_btn: Gtk.Button = Gtk.Template.Child()
-    # listen_cancel_btn: Gtk.Button = Gtk.Template.Child()
-    # listen_spinner: Gtk.Spinner = Gtk.Template.Child()
     share_list_box: Gtk.ListBox = Gtk.Template.Child()
     grab_btn: Gtk.Button = Gtk.Template.Child()
     text_copy_btn: Gtk.Button = Gtk.Template.Child()
@@ -68,23 +42,12 @@ class ExtractedPage(Adw.NavigationPage):
 
         ttsservice.connect("stop", self._on_listen_end)
 
-        # self.language_popover.connect('language-changed', self._on_language_changed)
-
-        self.settings = Gtk.Application.get_default().props.settings
-
-        # self.lang_combo.set_label(
-        #     language_manager.get_language(self.settings.get_string("active-language"))
-        # )
-
-    # def _on_language_changed(self, _: LanguagePopover, language: LanguageItem):
-    #     self.lang_combo.set_label(language.title)
-    #     self.settings.set_string("active-language", language.code)
-
     def do_hiding(self) -> None:
         self.buffer.set_text("")
         self.emit("go-back", 1)
 
     def do_showing(self) -> None:
+        pass
 
     @GObject.Property(type=str)
     def extracted_text(self) -> str:
@@ -99,14 +62,11 @@ class ExtractedPage(Adw.NavigationPage):
         try:
             self.buffer.set_text(text)
         except Exception as e:
-            logger.debug("Got Exception")
-            logger.debug(e)
+            logger.debug(f"Got Exception: {e}")
 
     def listen(self):
         self.swap_controls(True)
-
         lang = self.settings.get_string("active-language")
-
         GObjectWorker.call(
             ttsservice.generate,
             (self.extracted_text, lang[:2]),
@@ -121,7 +81,6 @@ class ExtractedPage(Adw.NavigationPage):
         if not filepath:
             self.swap_controls(False)
             return
-
         ttsservice.play(filepath)
 
     def _on_listen_end(self, service: TTSService, success: bool):
@@ -130,12 +89,3 @@ class ExtractedPage(Adw.NavigationPage):
 
     def swap_controls(self, state: bool = False):
         pass
-        # Stop spinner
-        # if state:
-        #     self.listen_spinner.start()
-        # else:
-        #     self.listen_spinner.stop()
-        #
-        # # Swap buttons
-        # self.listen_btn.set_visible(not state)
-        # self.listen_cancel_btn.set_visible(state)

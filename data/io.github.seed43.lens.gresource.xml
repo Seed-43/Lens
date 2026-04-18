@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
-    <gresource prefix="/com/github/seed43/lens">
+    <gresource prefix="/io/github/seed43/lens">
         <file preprocess="xml-stripblanks">ui/window.ui</file>
         <file preprocess="xml-stripblanks">ui/welcome_page.ui</file>
         <file preprocess="xml-stripblanks">ui/extracted_page.ui</file>

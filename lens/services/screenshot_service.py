@@ -1,6 +1,7 @@
 # screenshot_service.py
 #
 # Copyright 2022-2025 Andrey Maksimov
+# Copyright 2026-present Seed-43
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -155,4 +156,4 @@ class ScreenshotService(GObject.GObject):
             self.emit("error", "No text found.")
 
     def capture_cancelled(self, cancellable: Gio.Cancellable) -> None:
-        self.emit("error", "Cancelled")
+        pass  # User cancelled - not an error
