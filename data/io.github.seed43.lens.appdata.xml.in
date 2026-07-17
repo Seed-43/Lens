@@ -15,10 +15,13 @@
         <p>Features:</p>
         <ul>
             <li>Extract text from screenshots, images and clipboard</li>
+            <li>Choose between Tesseract, EasyOCR, PaddleOCR and docTR, with in-app download and update checks for each engine</li>
             <li>Drag and drop image files directly onto the window</li>
             <li>QR code detection and decoding</li>
-            <li>Multi-language OCR support via Tesseract</li>
+            <li>Multi-language OCR support, including a secondary language</li>
             <li>Auto-copy extracted text to clipboard</li>
+            <li>Searchable extraction history with configurable retention</li>
+            <li>Optionally keep or discard the screenshot after extraction</li>
             <li>System-wide hotkey support</li>
             <li>Wayland native</li>
         </ul>
@@ -52,6 +55,19 @@
     </screenshots>
 
     <releases>
+        <release version="1.7.0" type="stable" date="2026-07-18">
+            <description translate="no">
+                <p>OCR engine rebuild and settings overhaul.</p>
+                <ul>
+                    <li>Fixed EasyOCR, PaddleOCR and docTR — engine selection now works end to end</li>
+                    <li>Added in-app update checks and one-click updates for installed engines</li>
+                    <li>Automatic fallback to Tesseract if another engine fails</li>
+                    <li>New option to keep the screenshot instead of deleting it after extraction</li>
+                    <li>Clearer progress messages while text is being extracted</li>
+                    <li>Sidebar and content areas redesigned to match the GNOME Files layout</li>
+                </ul>
+            </description>
+        </release>
         <release version="1.6.0" type="stable" date="2026-04-18">
             <description translate="no">
                 <p>Initial release of Lens by Seed-43.</p>
