@@ -48,8 +48,9 @@
             "buildsystem": "meson",
             "sources": [
                 {
-                    "type": "dir",
-                    "path": ".."
+                    "type": "git",
+                    "url": "https://github.com/Seed-43/Lens.git",
+                    "tag": "v1.7.0"
                 }
             ]
         }

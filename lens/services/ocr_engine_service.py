@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from gettext import gettext as _
 from io import BytesIO
@@ -216,20 +217,24 @@ class OcrEngineService(GObject.GObject):
     # ------------------------------------------------------------------ #
 
     @staticmethod
-    def _host_run(argv: list, timeout: int = 30) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["flatpak-spawn", "--host"] + argv,
-            capture_output=True, text=True, timeout=timeout,
-        )
+    def _run(argv: list, timeout: int = 30) -> subprocess.CompletedProcess:
+        """
+        Run *argv* inside the Flatpak sandbox — no host access.
+
+        Everything the OCR engines need (venv, pip, network) lives inside
+        the app's own writable data directory and the sandbox's shared
+        network, so there's no need to reach out to the host at all.
+        """
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
 
     def _ensure_venv(self) -> bool:
-        """Create the OCR venv on the host if it doesn't exist."""
+        """Create the OCR venv, inside the sandbox, if it doesn't exist."""
         if os.path.exists(_VENV_PIP):
             return True
         try:
             logger.debug(f"Creating venv at {_VENV_DIR}")
-            result = self._host_run(
-                ["python3", "-m", "venv", _VENV_DIR], timeout=120
+            result = self._run(
+                [sys.executable, "-m", "venv", _VENV_DIR], timeout=120
             )
             if result.returncode == 0:
                 logger.debug("Venv created OK")
@@ -253,8 +258,9 @@ class OcrEngineService(GObject.GObject):
         """
         Report whether *engine_key* is usable.
 
-        Non-Tesseract engines live in a venv on the host, so the check is
-        performed with the venv's own Python via ``importlib.metadata``
+        Non-Tesseract engines live in a venv inside the app's own sandboxed
+        data directory, so the check is performed with the venv's own
+        Python via ``importlib.metadata``
         (fast — no heavy imports).  Results are cached; pass
         ``refresh=True`` after an install or uninstall.
 
@@ -270,7 +276,7 @@ class OcrEngineService(GObject.GObject):
         pip_name = ENGINES[engine_key]["pip_name"]
         if os.path.exists(_VENV_PY):
             try:
-                result = self._host_run(
+                result = self._run(
                     [_VENV_PY, "-c",
                      f"import importlib.metadata as m; m.version({pip_name!r})"],
                     timeout=15,
@@ -315,7 +321,6 @@ class OcrEngineService(GObject.GObject):
             logger.debug(f"Installing {packages} into venv {_VENV_DIR}")
 
             cmd = [
-                "flatpak-spawn", "--host",
                 _VENV_PIP, "install",
                 "--upgrade",
                 "--progress-bar", "off",
@@ -382,7 +387,7 @@ class OcrEngineService(GObject.GObject):
         if not pip_name or not os.path.exists(_VENV_PIP):
             return True
         try:
-            result = self._host_run(
+            result = self._run(
                 [_VENV_PIP, "uninstall", "-y", pip_name], timeout=300
             )
             ok = result.returncode == 0
@@ -428,7 +433,7 @@ class OcrEngineService(GObject.GObject):
         if not pip_name or not os.path.exists(_VENV_PY):
             return None
         try:
-            result = self._host_run(
+            result = self._run(
                 [_VENV_PY, "-c",
                  f"import importlib.metadata as m; print(m.version({pip_name!r}))"],
                 timeout=15,
@@ -448,7 +453,7 @@ class OcrEngineService(GObject.GObject):
         if extra_index:
             cmd += ["--extra-index-url", extra_index]
         try:
-            result = self._host_run(cmd, timeout=20)
+            result = self._run(cmd, timeout=20)
             # "pip index" is experimental but stable enough to parse:
             # first line looks like "paddleocr (2.9.1)"
             for line in result.stdout.splitlines():
@@ -545,7 +550,7 @@ class OcrEngineService(GObject.GObject):
 
         try:
             self._write_runner()
-            result = self._host_run(
+            result = self._run(
                 [_VENV_PY, _RUNNER_PATH, engine_key, image_path, lang],
                 timeout=_EXTRACT_TIMEOUT,
             )
