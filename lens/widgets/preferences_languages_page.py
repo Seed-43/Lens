@@ -1,179 +1,143 @@
 # preferences_languages_page.py
 #
-# Copyright 2021-2025 Andrey Maksimov
-# Copyright 2026-present Seed-43
+# Copyright (C) 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 
 from gettext import gettext as _
 
-from gi.repository import Gtk, Adw, Gio
+from gi.repository import Adw, Gio, Gtk
 
 from lens.config import RESOURCE_PREFIX
 from lens.language_manager import language_manager
-from lens.settings import Settings
 from lens.types.language_item import LanguageItem
 from lens.widgets.language_row import LanguageRow
 
 
-@Gtk.Template(resource_path=f'{RESOURCE_PREFIX}/ui/preferences_languages.ui')
+@Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/preferences_languages.ui")
 class PreferencesLanguagesPage(Adw.PreferencesPage):
-    __gtype_name__ = 'PreferencesLanguagesPage'
+    """
+    Preferences page for managing installed Tesseract language packs.
+    Supports search, download and removal of packs.
+    """
 
-    banner: Adw.Banner = Gtk.Template.Child()
-    views: Gtk.Stack = Gtk.Template.Child()
-    search_bar: Gtk.SearchBar = Gtk.Template.Child()
-    language_search_entry: Gtk.SearchEntry = Gtk.Template.Child()
-    list_view: Gtk.ListView = Gtk.Template.Child()
-    model: Gtk.FilterListModel = Gtk.Template.Child()
-    list_store: Gio.ListStore = Gtk.Template.Child()
-    revealer: Gtk.Revealer = Gtk.Template.Child()
+    __gtype_name__ = "PreferencesLanguagesPage"
+
+    banner:                Adw.Banner        = Gtk.Template.Child()
+    views:                 Gtk.Stack         = Gtk.Template.Child()
+    search_bar:            Gtk.SearchBar     = Gtk.Template.Child()
+    language_search_entry: Gtk.SearchEntry   = Gtk.Template.Child()
+    list_view:             Gtk.ListView      = Gtk.Template.Child()
+    model:                 Gtk.FilterListModel = Gtk.Template.Child()
+    list_store:            Gio.ListStore     = Gtk.Template.Child()
+    revealer:              Gtk.Revealer      = Gtk.Template.Child()
 
     def __init__(self):
         super().__init__()
+        self.settings = Gtk.Application.get_default().props.settings
+        self._load_all_languages()
 
-        self.settings: Settings = Gtk.Application.get_default().props.settings
+        language_manager.connect("added",      self._on_language_changed)
+        language_manager.connect("downloaded", self._on_language_changed)
+        language_manager.connect("removed",    self._on_language_changed)
 
-        # self.store: Gio.ListStore = Gio.ListStore.new(LanguageItem)
-        # self.model: Gtk.FilterListModel = Gtk.FilterListModel.new(self.store, None)
-        for lang_code in language_manager.get_available_codes():
-            self.list_store.append(LanguageItem(lang_code, title=language_manager.get_language(lang_code)))
+        self.language_search_entry.connect("search-changed", self._on_search_changed)
+        self.language_search_entry.connect("stop-search",    self._on_search_stopped)
+        self.search_bar.connect("notify::search-mode-enabled", self._on_search_mode_changed)
 
-        language_manager.connect('added', self.on_language_added)
-        language_manager.connect('downloaded', self.on_language_added)
-        language_manager.connect('removed', self.on_language_removed)
+        self._apply_filter()
+        self._check_connection()
 
-        # self.installed_switch.connect('notify::active', self.on_installed_switched)
-        self.language_search_entry.connect('search-changed', self.on_language_search)
-        self.language_search_entry.connect('stop-search', self.on_language_search_stop)
-        self.search_bar.connect('notify::search-mode-enabled', self.on_search_mode_enabled)
-
-        self.load_languages()
-        self.activate_filter()
-
-        self.check_connection()
-
-    def do_show(self):
-        pass
-
-    def check_connection(self):
-        # Check for access to GitHub
-        if not Gio.NetworkMonitor.get_default().can_reach(Gio.NetworkAddress.new('raw.githubusercontent.com', 443)):
-            self.banner.set_title(_("Models location unreachable. Check your internet connection."))
-            self.banner.set_revealed(True)
-            return
-
-        # Check for metered connection
-        if Gio.NetworkMonitor.get_default().get_network_metered():
-            self.banner.set_title(_("You are on a metered connection. Be careful to download languages."))
-            self.banner.set_revealed(True)
-            return
-
-        self.banner.set_revealed(False)
+    # ------------------------------------------------------------------ #
+    # Template callbacks                                                   #
+    # ------------------------------------------------------------------ #
 
     @Gtk.Template.Callback()
-    def _on_banner_clicked(self, _):
-        self.check_connection()
+    def _on_banner_clicked(self, _) -> None:
+        self._check_connection()
 
     @Gtk.Template.Callback()
-    def _on_item_setup(self, factory: Gtk.SignalListItemFactory, item: Gtk.ListItem):
-        row: LanguageRow = LanguageRow()
-        item.set_child(row)
+    def _on_item_setup(self, _factory: Gtk.SignalListItemFactory, item: Gtk.ListItem) -> None:
+        item.set_child(LanguageRow())
 
     @Gtk.Template.Callback()
-    def _on_item_bind(self, factory: Gtk.SignalListItemFactory, list_item: Gtk.ListItem):
-        row: LanguageRow = list_item.get_child()
-        item: LanguageItem = list_item.get_item()
-        row.item = item
+    def _on_item_bind(self, _factory: Gtk.SignalListItemFactory, list_item: Gtk.ListItem) -> None:
+        row: LanguageRow     = list_item.get_child()
+        lang: LanguageItem   = list_item.get_item()
+        row.item = lang
 
     @Gtk.Template.Callback()
-    def _on_add_language(self, sender: Gtk.Widget):
-        if not self.is_search_mode:
-            self.deactivate_filter()
+    def _on_add_language(self, _sender: Gtk.Widget) -> None:
+        if self.search_bar.get_search_mode():
+            self._apply_filter()
+            self.search_bar.set_search_mode(False)
+        else:
+            self._show_all()
             self.search_bar.set_search_mode(True)
             self.language_search_entry.grab_focus()
-        else:
-            self.activate_filter()
-            self.search_bar.set_search_mode(False)
 
-    def load_languages(self):
-        self.list_store.remove_all()
-        for lang_code in language_manager.get_available_codes():
-            self.list_store.append(language_manager.get_language_item(lang_code))
+    # ------------------------------------------------------------------ #
+    # Search                                                               #
+    # ------------------------------------------------------------------ #
 
-    def add_view_more_langs(self) -> None:
-        view_more_langs_row = Gtk.ListBoxRow(tooltip_text=_("View all available languages"))
-        view_more_image: Gtk.Image = Gtk.Image.new_from_icon_name('view-more-symbolic')
-        view_more_image.set_margin_top(14)
-        view_more_image.set_margin_bottom(14)
-        view_more_langs_row.set_child(view_more_image)
+    def _on_search_changed(self, entry: Gtk.SearchEntry) -> None:
+        self._apply_filter(entry.get_text() or None)
 
-        self.list_store.append(view_more_langs_row)
-
-    @property
-    def is_search_mode(self):
-        return self.search_bar.get_search_mode()
-
-    def activate_filter(self, search_text: str = None) -> None:
-        _filter: Gtk.CustomFilter = Gtk.CustomFilter.new(PreferencesLanguagesPage.filter_func, search_text)
-        self.model.set_filter(_filter)
-        self.toggle_empty_state(not self.model.get_n_items())
-
-    def deactivate_filter(self):
-        self.model.set_filter(None)
-
-    def on_language_search(self, entry: Gtk.SearchEntry, _user_data: object = None) -> None:
-        self.activate_filter(entry.get_text())
-
-    def on_language_search_stop(self, entry: Gtk.SearchEntry) -> None:
-        entry.set_text('')
+    def _on_search_stopped(self, entry: Gtk.SearchEntry) -> None:
+        entry.set_text("")
         self.search_bar.set_search_mode(False)
         self.revealer.set_reveal_child(True)
-        self.activate_filter()
+        self._apply_filter()
 
-    def on_search_mode_enabled(self, _searchbar, _enabled: bool) -> None:
+    def _on_search_mode_changed(self, _bar, _param) -> None:
         if not self.search_bar.get_search_mode():
-            self.activate_filter()
+            self._apply_filter()
 
-    @staticmethod
-    def filter_func(item, user_data: str) -> bool:
-        if user_data:
-            return user_data.lower() in item.title.lower()
+    def _on_language_changed(self, _sender, _code: str | None = None) -> None:
+        if not self.search_bar.get_search_mode():
+            self._apply_filter()
+
+    # ------------------------------------------------------------------ #
+    # Helpers                                                              #
+    # ------------------------------------------------------------------ #
+
+    def _load_all_languages(self) -> None:
+        self.list_store.remove_all()
+        for code in language_manager.get_available_codes():
+            self.list_store.append(language_manager.get_language_item(code))
+
+    def _apply_filter(self, query: str | None = None) -> None:
+        """Show only installed languages, optionally filtered by *query*."""
+        downloaded = set(language_manager.get_downloaded_codes())
+
+        def _filter(item: LanguageItem, q: str | None) -> bool:
+            if q:
+                return q.lower() in item.title.lower()
+            return item.code in downloaded
+
+        self.model.set_filter(Gtk.CustomFilter.new(_filter, query))
+        self._toggle_empty(not self.model.get_n_items())
+
+    def _show_all(self) -> None:
+        """Remove filter so all languages are visible for browsing."""
+        self.model.set_filter(None)
+
+    def _toggle_empty(self, is_empty: bool) -> None:
+        name = "empty_state" if is_empty else "languages_state"
+        self.views.set_visible_child_name(name)
+
+    def _check_connection(self) -> None:
+        monitor = Gio.NetworkMonitor.get_default()
+        host    = Gio.NetworkAddress.new("raw.githubusercontent.com", 443)
+
+        if not monitor.can_reach(host):
+            self.banner.set_title(_("Models location unreachable. Check your internet connection."))
+            self.banner.set_revealed(True)
+        elif monitor.get_network_metered():
+            self.banner.set_title(_("Metered connection — be careful downloading language packs."))
+            self.banner.set_revealed(True)
         else:
-            return item.code in language_manager.get_downloaded_codes()
-
-    def on_language_added(self, _sender, _code: str = None) -> None:
-        if not self.search_bar.get_search_mode():
-            self.activate_filter()
-
-    def on_language_removed(self, _sender, _code) -> None:
-        if not self.search_bar.get_search_mode():
-            self.activate_filter()
-
-    def toggle_empty_state(self, is_empty: bool = False) -> None:
-        if is_empty:
-            self.views.set_visible_child_name('empty_state')
-        else:
-            self.views.set_visible_child_name('languages_state')
+            self.banner.set_revealed(False)

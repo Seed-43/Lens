@@ -7,3 +7,4 @@ venv
 /subprojects/blueprint-compiler
 
 __pycache__
+lens-build.log

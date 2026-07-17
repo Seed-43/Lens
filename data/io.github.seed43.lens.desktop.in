@@ -1,18 +1,11 @@
 [Desktop Entry]
 Name=Lens
-GenericName=Text extraction tool
-Comment=Extract text from any image, video or web page
+GenericName=Text Extractor
+Comment=Extract text from anything on your screen
 Exec=lens
 Icon=io.github.seed43.lens
 Terminal=false
 Type=Application
-Categories=GTK;Utility;Office;
+Categories=GTK;GNOME;Utility;
 StartupNotify=true
-Keywords=OCR;Text;Extraction;
-Actions=extractToClipboard;
-# Translators: Do NOT translate or transliterate this text (these are enum types)!
-X-Purism-FormFactor=Workstation;Mobile;
-
-[Desktop Action extractToClipboard]
-Name=Extract Text to the Clipboard
-Exec=lens --extract_to_clipboard
+Keywords=OCR;Text;Screenshot;Extract;QR;

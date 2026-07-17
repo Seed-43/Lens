@@ -28,6 +28,17 @@ appstream_file = i18n.merge_file(
   install_dir: join_paths(get_option('datadir'), 'appdata')
 )
 
+# Install screenshots
+install_data(
+  'screenshots/Lens_Dark_01.png',
+  'screenshots/Lens_Dark_02.png',
+  'screenshots/Lens_Dark_03.png',
+  'screenshots/Lens_Light_01.png',
+  'screenshots/Lens_Light_02.png',
+  'screenshots/Lens_Light_03.png',
+  install_dir: join_paths(get_option('datadir'), 'io.github.seed43.lens', 'screenshots')
+)
+
 appstream_util = find_program('appstream-util', required: false)
 if appstream_util.found()
   test('Validate appstream file', appstream_util,
@@ -55,17 +66,13 @@ subdir('icons')
 
 blueprints = custom_target('blueprints',
   input: files(
-    'ui/preferences_dialog.blp',
-    'ui/preferences_general.blp',
     'ui/preferences_languages.blp',
     'ui/shortcuts.blp',
     'ui/window.blp',
     'ui/language_popover.blp',
+    'ui/manage_languages_popover.blp',
     'ui/language_popover_row.blp',
     'ui/language_row.blp',
-    'ui/welcome_page.blp',
-    'ui/extracted_page.blp',
-    'ui/share_row.blp',
   ),
   output: '.',
   command: [find_program('blueprint-compiler'), 'batch-compile', '@OUTPUT@', '@CURRENT_SOURCE_DIR@', '@INPUT@'],

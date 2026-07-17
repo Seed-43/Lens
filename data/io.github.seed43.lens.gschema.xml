@@ -11,6 +11,26 @@
       <summary>Default window height</summary>
     </key>
 
+    <key name="sidebar-width" type="i">
+      <default>240</default>
+      <summary>Sidebar width</summary>
+    </key>
+
+    <key name="history-width" type="i">
+      <default>180</default>
+      <summary>History panel width</summary>
+    </key>
+
+    <key name="history-days" type="i">
+      <default>30</default>
+      <summary>Days to keep history</summary>
+    </key>
+
+    <key name="ocr-engine" type="s">
+      <default>"tesseract"</default>
+      <summary>Active OCR engine</summary>
+    </key>
+
     <key name="extra-language" type="s">
       <default>"eng"</default>
       <summary>Extra language</summary>
@@ -30,6 +50,11 @@
       <default>false</default>
       <summary>Open QR-code links</summary>
       <description>Automatically open links from QR-codes</description>
+    </key>
+    <key name="delete-screenshot" type="b">
+      <default>true</default>
+      <summary>Delete screenshot after extraction</summary>
+      <description>Remove the captured screenshot file once text has been extracted from it.</description>
     </key>
   </schema>
 </schemalist>

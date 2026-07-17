@@ -2,25 +2,619 @@ using Gtk 4.0;
 using Adw 1;
 
 template $LensWindow : Adw.ApplicationWindow {
-  default-width: 480;
-  default-height: 480;
-  width-request: 360;
-  height-request: 360;
-
+  default-width: 760;
+  default-height: 520;
+  width-request: 620;
+  height-request: 605;
 
   [content]
   Adw.ToastOverlay toast_overlay {
 
-    Adw.NavigationSplitView split_view {
-      collapsed: true;
+    Adw.NavigationView main_nav {
 
-      [sidebar]
-      $WelcomePage welcome_page {
-        name: "welcome";
-      }
+      Adw.NavigationPage {
+        tag: "main";
+        title: "Lens";
 
-      $ExtractedPage extracted_page {
-        name: "extracted";
+        Adw.OverlaySplitView split_view {
+          min-sidebar-width: 310;
+          max-sidebar-width: 340;
+          sidebar-width-fraction: 0.3;
+          enable-show-gesture: false;
+          enable-hide-gesture: false;
+
+          sidebar: Adw.ToolbarView {
+
+            [top]
+            Adw.HeaderBar {
+              show-title: false;
+            }
+
+            content: Box sidebar {
+              orientation: vertical;
+
+              Box sidebar_header {
+                orientation: vertical;
+                margin-top: 4;
+                margin-bottom: 10;
+                margin-start: 20;
+                margin-end: 20;
+                spacing: 10;
+
+                Box {
+                  orientation: horizontal;
+                  spacing: 12;
+
+                  Image app_icon {
+                    pixel-size: 78;
+                    valign: start;
+                    halign: center;
+                  }
+
+                  Box {
+                    orientation: vertical;
+                    valign: start;
+                    spacing: 0;
+
+                    Box {
+                      orientation: horizontal;
+                      spacing: 5;
+
+                      Label {
+                        label: "Lens";
+                        styles ["title-4"]
+                        xalign: 0;
+                      }
+
+                      Label version_label {
+                        xalign: 0;
+                        valign: end;
+                        margin-bottom: 2;
+                        styles ["dim-label", "caption"]
+                      }
+                    }
+
+                    Label {
+                      label: _("GNOME Text Extractor");
+                      xalign: 0;
+                      styles ["dim-label", "caption"]
+                    }
+
+                    LinkButton {
+                      label: _("Website");
+                      uri: "https://github.com/Seed-43/Lens";
+                      styles ["caption", "flat", "header-link"]
+                      halign: start;
+                      margin-top: 4;
+                    }
+
+                    LinkButton {
+                      label: _("Report an issue");
+                      uri: "https://github.com/Seed-43/Lens/issues/new";
+                      styles ["caption", "flat", "header-link"]
+                      halign: start;
+                    }
+                  }
+                }
+
+                Box tab_bar {
+                  orientation: horizontal;
+                  homogeneous: true;
+                  spacing: 4;
+
+                  styles ["linked", "tab-bar"]
+
+                  ToggleButton tab_lens {
+                    label: _("Lens");
+                    active: true;
+                  }
+
+                  ToggleButton tab_settings {
+                    label: _("Settings");
+                    group: tab_lens;
+                  }
+                }
+              }
+
+              Separator { }
+
+              Stack sidebar_stack {
+                vexpand: true;
+
+                StackPage {
+                  name: "lens";
+                  child: Box {
+                    orientation: vertical;
+                    margin-top: 12;
+                    margin-bottom: 12;
+                    margin-start: 20;
+                    margin-end: 20;
+                    spacing: 6;
+
+                    Adw.Banner engine_update_banner {
+                      button-label: _("Update");
+                      revealed: false;
+                    }
+
+                    Label {
+                      label: _("Extract");
+                      xalign: 0;
+                      styles ["heading", "dim-label"]
+                      margin-bottom: 2;
+                    }
+
+                    Button {
+                      action-name: "app.get_screenshot";
+                      styles ["suggested-action"]
+                      child: Box {
+                        halign: center;
+                        spacing: 6;
+                        Image { icon-name: "camera-photo-symbolic"; }
+                        Label { label: _("Take a Screenshot"); }
+                      };
+                    }
+
+                    Button {
+                      action-name: "app.open_image";
+                      child: Box {
+                        halign: center;
+                        spacing: 6;
+                        Image { icon-name: "folder-open-symbolic"; }
+                        Label { label: _("Open Image"); }
+                      };
+                    }
+
+                    Button {
+                      action-name: "app.paste_from_clipboard";
+                      child: Box {
+                        halign: center;
+                        spacing: 6;
+                        Image { icon-name: "edit-paste-symbolic"; }
+                        Label { label: _("Paste from Clipboard"); }
+                      };
+                    }
+
+                    Button history_open_btn {
+                      child: Box {
+                        halign: center;
+                        spacing: 6;
+                        Image { icon-name: "document-open-recent-symbolic"; }
+                        Label { label: _("History"); }
+                      };
+                    }
+
+                    Box {
+                      orientation: vertical;
+                      spacing: 4;
+                      margin-top: 8;
+                      halign: center;
+
+                      Adw.Spinner spinner {
+                        visible: false;
+                        halign: center;
+                      }
+
+                      Label extract_status_label {
+                        visible: false;
+                        halign: center;
+                        justify: center;
+                        wrap: true;
+                        styles ["dim-label", "caption"]
+                      }
+                    }
+
+                    Box {
+                      orientation: vertical;
+                      vexpand: true;
+                      valign: end;
+                      margin-top: 8;
+                      margin-bottom: 8;
+
+                      Separator { margin-bottom: 8; }
+
+                      Label {
+                        label: _("Lens by Seed-43");
+                        xalign: 0.5;
+                        styles ["dim-label", "caption"]
+                      }
+                    }
+                  };
+                }
+
+                StackPage {
+                  name: "settings";
+                  child: ScrolledWindow {
+                    vexpand: true;
+                    hscrollbar-policy: never;
+
+                    Box {
+                      orientation: vertical;
+                      margin-top: 12;
+                      margin-bottom: 12;
+                      margin-start: 20;
+                      margin-end: 20;
+                      spacing: 6;
+
+                      Label {
+                        label: _("Language");
+                        xalign: 0;
+                        styles ["heading", "dim-label"]
+                        margin-bottom: 2;
+                      }
+
+                      Box {
+                        orientation: vertical;
+                        spacing: 0;
+                        styles ["card"]
+
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label {
+                            label: _("Primary");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          MenuButton lang_combo {
+                            tooltip-text: _("Select primary language");
+                            popover: $LanguagePopover language_popover {};
+                            styles ["flat"]
+                          }
+                        }
+
+                        Separator {}
+
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label {
+                            label: _("Secondary");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          MenuButton extra_lang_combo {
+                            tooltip-text: _("Optional second language");
+                            popover: $LanguagePopover extra_language_popover {};
+                            styles ["flat"]
+                          }
+                        }
+
+                        Separator {}
+
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label {
+                            label: _("Manage");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          MenuButton manage_languages_btn {
+                            tooltip-text: _("Download or remove languages");
+                            popover: $ManageLanguagesPopover manage_languages_popover {};
+                            styles ["flat"]
+                          }
+                        }
+                      }
+
+                      Label {
+                        label: _("OCR Engine");
+                        xalign: 0;
+                        styles ["heading", "dim-label"]
+                        margin-top: 8;
+                        margin-bottom: 2;
+                      }
+
+                      Box {
+                        orientation: vertical;
+                        spacing: 6;
+
+                        Box {
+                          orientation: horizontal;
+                          spacing: 4;
+
+                          Label {
+                            label: _("Engine");
+                            xalign: 0;
+                            hexpand: true;
+                          }
+
+                          Button ocr_uninstall_btn {
+                            icon-name: "user-trash-symbolic";
+                            tooltip-text: _("Remove this engine from disk");
+                            visible: false;
+                            valign: center;
+                            styles ["flat"]
+                          }
+
+                          DropDown ocr_engine_dropdown {
+                            model: StringList {
+                              strings [_("Tesseract 5"), _("EasyOCR"), _("PaddleOCR"), _("docTR")]
+                            };
+                            styles ["flat"]
+                          }
+                        }
+
+                        Box ocr_download_box {
+                          orientation: vertical;
+                          visible: false;
+                          spacing: 6;
+
+                          Box {
+                            orientation: horizontal;
+                            spacing: 8;
+
+                            Image {
+                              icon-name: "dialog-information-symbolic";
+                              styles ["dim-label"]
+                            }
+
+                            Label ocr_status_label {
+                              xalign: 0;
+                              hexpand: true;
+                              wrap: true;
+                              styles ["dim-label", "caption"]
+                            }
+
+                            Button ocr_download_btn {
+                              label: _("Download");
+                              valign: center;
+                              styles ["suggested-action"]
+                            }
+                          }
+
+                          ProgressBar ocr_progress_bar {
+                            visible: false;
+                            styles ["osd"]
+                          }
+                        }
+                      }
+
+                      Label {
+                        label: _("Behaviour");
+                        xalign: 0;
+                        styles ["heading", "dim-label"]
+                        margin-top: 8;
+                        margin-bottom: 2;
+                      }
+
+                      Box {
+                        orientation: horizontal;
+
+                        Label {
+                          label: _("Auto copy to clipboard");
+                          xalign: 0;
+                          hexpand: true;
+                        }
+
+                        Switch autocopy_switch {
+                          valign: center;
+                        }
+                      }
+
+                      Box {
+                        orientation: horizontal;
+
+                        Label {
+                          label: _("Open QR-code links");
+                          xalign: 0;
+                          hexpand: true;
+                        }
+
+                        Switch autolinks_switch {
+                          valign: center;
+                        }
+                      }
+
+                      Box {
+                        orientation: horizontal;
+
+                        Label {
+                          label: _("Delete screenshot after extraction");
+                          xalign: 0;
+                          hexpand: true;
+                        }
+
+                        Switch delete_screenshot_switch {
+                          valign: center;
+                        }
+                      }
+
+                      Label {
+                        label: _("History");
+                        xalign: 0;
+                        styles ["heading", "dim-label"]
+                        margin-top: 8;
+                        margin-bottom: 2;
+                      }
+
+                      Box {
+                        orientation: horizontal;
+
+                        Label {
+                          label: _("Keep history for (days)");
+                          xalign: 0;
+                          hexpand: true;
+                        }
+
+                        SpinButton history_days_spin {
+                          valign: center;
+                          numeric: true;
+                          adjustment: Adjustment {
+                            lower: 1;
+                            upper: 365;
+                            step-increment: 1;
+                            value: 30;
+                          };
+                        }
+                      }
+                    }
+                  };
+                }
+              }
+            };
+          };
+
+          content: Adw.ToolbarView {
+
+            [top]
+            Adw.HeaderBar {
+              [title]
+              Label { }
+
+              [end]
+              Button {
+                action-name: "app.copy_to_clipboard";
+                icon-name: "edit-copy-symbolic";
+                tooltip-text: _("Copy extracted text");
+              }
+
+              [end]
+              Button {
+                action-name: "app.clear_text";
+                icon-name: "edit-clear-all-symbolic";
+                tooltip-text: _("Clear text");
+              }
+
+              [end]
+              Button {
+                action-name: "app.shortcuts";
+                icon-name: "input-keyboard-symbolic";
+                tooltip-text: _("Keyboard Shortcuts");
+              }
+            }
+
+            content: Overlay content_overlay {
+              vexpand: true;
+              hexpand: true;
+
+              Stack content_stack {
+                vexpand: true;
+                hexpand: true;
+
+                StackPage {
+                  name: "empty";
+                  child: Adw.StatusPage empty_state {
+                    icon-name: "document-edit-symbolic";
+                    title: _("No Text Extracted");
+                    description: _("Take a screenshot, open an image, or paste from clipboard to extract text.");
+                  };
+                }
+
+                StackPage {
+                  name: "text";
+                  child: ScrolledWindow {
+                    vexpand: true;
+                    hexpand: true;
+
+                    TextView text_view {
+                      left-margin: 14;
+                      right-margin: 14;
+                      top-margin: 14;
+                      bottom-margin: 14;
+                      pixels-above-lines: 4;
+                      pixels-below-lines: 4;
+                      wrap-mode: word_char;
+
+                      buffer: TextBuffer buffer {};
+                    }
+                  };
+                }
+              }
+
+              [overlay]
+              Button history_edge_btn {
+                halign: end;
+                valign: center;
+                styles ["history-edge-btn"]
+                child: Image {
+                  icon-name: "list-drag-handle-symbolic";
+                  pixel-size: 12;
+                };
+              }
+
+              [overlay]
+              Box history_panel {
+                orientation: horizontal;
+                halign: end;
+                valign: fill;
+                visible: false;
+
+                Button history_resize_handle {
+                  valign: center;
+                  styles ["history-resize-handle"]
+                  child: Image {
+                    icon-name: "list-drag-handle-symbolic";
+                    pixel-size: 12;
+                  };
+                }
+
+                Box history_inner {
+                  orientation: vertical;
+                  width-request: 200;
+                  styles ["history-panel-box"]
+
+                  Box {
+                    orientation: horizontal;
+                    margin-top: 6;
+                    margin-bottom: 6;
+                    margin-start: 4;
+                    margin-end: 8;
+
+                    Button history_close_btn {
+                      icon-name: "go-next-symbolic";
+                      tooltip-text: _("Close history");
+                      styles ["flat"]
+                    }
+
+                    Label {
+                      label: _("History");
+                      xalign: 0;
+                      hexpand: true;
+                      styles ["heading"]
+                    }
+
+                    Button history_clear_all_btn {
+                      icon-name: "user-trash-symbolic";
+                      tooltip-text: _("Delete all history");
+                      styles ["flat", "destructive-action"]
+                    }
+                  }
+
+                  Separator { }
+
+                  ScrolledWindow {
+                    vexpand: true;
+                    hscrollbar-policy: never;
+
+                    ListBox history_list {
+                      selection-mode: single;
+                      styles ["separators"]
+                    }
+                  }
+                }
+              }
+            };
+          };
+        }
       }
     }
   }

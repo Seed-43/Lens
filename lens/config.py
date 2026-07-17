@@ -1,23 +1,26 @@
 # config.py
 #
-# Copyright 2021-2025 Andrey Maksimov
-# Copyright 2026-present Seed-43
+# Copyright (C) 2026-present Seed-43
 #
-# MIT License - see LICENSE file for details
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 
 import os
 
-APP_ID = "io.github.seed43.lens"
+# Application identity
+APP_ID          = "io.github.seed43.lens"
 RESOURCE_PREFIX = "/io/github/seed43/lens"
 
-# XDG Base Directory specification
-if not os.getenv('XDG_DATA_HOME'):
-    os.environ['XDG_DATA_HOME'] = os.path.expanduser('~/.local/share')
+# Tessdata storage — respects XDG Base Directory spec
+_xdg_data = os.environ.get("XDG_DATA_HOME", os.path.expanduser("~/.local/share"))
+tessdata_dir = os.path.join(_xdg_data, "tessdata")
+os.makedirs(tessdata_dir, exist_ok=True)
 
-if not os.path.exists(os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata')):
-    os.mkdir(os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata'))
-
-tessdata_url = "https://github.com/tesseract-ocr/tessdata/raw/main/"
+# Tesseract model download URLs
+tessdata_url      = "https://github.com/tesseract-ocr/tessdata/raw/main/"
 tessdata_best_url = "https://github.com/tesseract-ocr/tessdata_best/raw/main/"
-tessdata_dir = os.path.join(os.environ['XDG_DATA_HOME'], 'tessdata')
-tessdata_config = f'--tessdata-dir {tessdata_dir} --psm 3 --oem 1'
+
+# Tesseract runtime config
+tessdata_config = f"--tessdata-dir {tessdata_dir} --psm 3 --oem 1"

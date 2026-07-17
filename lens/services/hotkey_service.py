@@ -1,0 +1,138 @@
+# hotkey_service.py
+#
+# Copyright (C) 2026-present Seed-43
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+import subprocess
+from gettext import gettext as _
+
+from gi.repository import GObject
+from loguru import logger
+
+LENS_BINDING_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/lens-hotkey/"
+MEDIA_SCHEMA      = "org.gnome.settings-daemon.plugins.media-keys"
+CUSTOM_SCHEMA     = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
+
+APP_CMD_SILENT = "/usr/bin/flatpak run --user io.github.seed43.lens -- -e"
+APP_CMD_SHOW   = "/usr/bin/flatpak run --user io.github.seed43.lens"
+
+DEFAULT_SHORTCUT = "<Primary>g"
+
+
+def _run(cmd: list) -> str | None:
+    """Run a command on the host via flatpak-spawn."""
+    try:
+        full_cmd = ["flatpak-spawn", "--host"] + cmd
+        logger.debug(f"Running: {' '.join(full_cmd)}")
+        result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=5)
+        if result.returncode != 0:
+            logger.debug(f"Command failed: {result.stderr.strip()}")
+            return None
+        return result.stdout.strip()
+    except Exception as e:
+        logger.debug(f"Command error: {e}")
+        return None
+
+
+def _gset(schema_path: str, key: str, value: str) -> bool:
+    """Set a gsettings key with a path."""
+    result = _run(["gsettings", "set", f"{CUSTOM_SCHEMA}:{schema_path}", key, value])
+    return result is not None
+
+
+def _gget(schema_path: str, key: str) -> str | None:
+    """Get a gsettings key with a path."""
+    return _run(["gsettings", "get", f"{CUSTOM_SCHEMA}:{schema_path}", key])
+
+
+def _media_set(key: str, value: str) -> bool:
+    result = _run(["gsettings", "set", MEDIA_SCHEMA, key, value])
+    return result is not None
+
+
+def _media_get(key: str) -> str | None:
+    return _run(["gsettings", "get", MEDIA_SCHEMA, key])
+
+
+class HotkeyService(GObject.GObject):
+    """Registers and manages a system-wide GNOME hotkey for Lens."""
+
+    __gtype_name__ = "HotkeyService"
+
+    __gsignals__ = {
+        "shortcut-changed": (GObject.SIGNAL_RUN_FIRST, None, (str,)),
+    }
+
+    def __init__(self):
+        super().__init__()
+
+    def get_current_shortcut(self) -> str | None:
+        result = _gget(LENS_BINDING_PATH, "binding")
+        if result and result not in ("''", '""', ""):
+            return result.strip("'\"")
+        return None
+
+    def get_current_mode(self) -> str:
+        result = _gget(LENS_BINDING_PATH, "command")
+        if result and "-e" in result:
+            return "silent"
+        return "show"
+
+    def set_shortcut(self, shortcut: str, mode: str = "silent") -> bool:
+        try:
+            cmd = APP_CMD_SILENT if mode == "silent" else APP_CMD_SHOW
+
+            _gset(LENS_BINDING_PATH, "name", "'Lens Text Extractor'")
+            _gset(LENS_BINDING_PATH, "command", f"'{cmd}'")
+            _gset(LENS_BINDING_PATH, "binding", f"'{shortcut}'")
+
+            # Register path in media-keys list
+            current = _media_get("custom-keybindings") or "@as []"
+            if LENS_BINDING_PATH not in current:
+                # Parse existing list and append
+                cleaned = current.strip()
+                if cleaned in ("@as []", "[]", ""):
+                    new_val = f"['{LENS_BINDING_PATH}']"
+                else:
+                    # Remove closing bracket and append
+                    new_val = cleaned.rstrip("]").rstrip() + f", '{LENS_BINDING_PATH}']"
+                _media_set("custom-keybindings", new_val)
+
+            logger.debug(f"Hotkey registered: {shortcut} -> {cmd}")
+            self.emit("shortcut-changed", shortcut)
+            return True
+
+        except Exception as e:
+            logger.debug(f"Failed to set hotkey: {e}")
+            return False
+
+    def clear_shortcut(self) -> bool:
+        try:
+            # Remove from custom-keybindings list
+            current = _media_get("custom-keybindings") or "@as []"
+            if LENS_BINDING_PATH in current:
+                import re
+                new_val = re.sub(rf",?\s*'{re.escape(LENS_BINDING_PATH)}'", "", current)
+                new_val = re.sub(rf"'{re.escape(LENS_BINDING_PATH)}',?\s*", "", new_val)
+                stripped = new_val.strip("[]").strip().strip(",").strip()
+                new_val = "@as []" if not stripped else f"[{stripped}]"
+                _media_set("custom-keybindings", new_val)
+
+            # Fully wipe the dconf path so no stale entries remain
+            _run(["dconf", "reset", "-f",
+                  f"/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/lens-hotkey/"])
+
+            logger.debug("Hotkey cleared")
+            self.emit("shortcut-changed", "")
+            return True
+
+        except Exception as e:
+            logger.debug(f"Failed to clear hotkey: {e}")
+            return False
+
+
+hotkey_service = HotkeyService()

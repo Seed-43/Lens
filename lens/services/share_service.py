@@ -21,10 +21,8 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# Note: This file is derived from Frog (MIT) and is part of Lens,
+# which is licensed under GPL-3. See LICENSE for details.
 from typing import List
 from urllib.parse import quote
 

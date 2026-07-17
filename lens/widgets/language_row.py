@@ -1,33 +1,13 @@
 # language_row.py
 #
-# Copyright 2021-2025 Andrey Maksimov
-# Copyright 2026-present Seed-43
+# Copyright (C) 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 
-from gi.repository import Gtk, GLib, GObject
+from gi.repository import GLib, GObject, Gtk
 from loguru import logger
 
 from lens.config import RESOURCE_PREFIX
@@ -37,86 +17,103 @@ from lens.types.language_item import LanguageItem
 
 @Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/language_row.ui")
 class LanguageRow(Gtk.Overlay):
+    """
+    A list row showing a language with install / remove controls
+    and a download progress bar.
+    """
+
     __gtype_name__ = "LanguageRow"
 
-    label: Gtk.Label = Gtk.Template.Child()
-    install_btn: Gtk.Button = Gtk.Template.Child()
-    remove_btn: Gtk.Button = Gtk.Template.Child()
+    label:        Gtk.Label      = Gtk.Template.Child()
+    install_btn:  Gtk.Button     = Gtk.Template.Child()
+    remove_btn:   Gtk.Button     = Gtk.Template.Child()
     progress_bar: Gtk.ProgressBar = Gtk.Template.Child()
-    revealer: Gtk.Revealer = Gtk.Template.Child()
-
-    _item: LanguageItem | None = None
+    revealer:     Gtk.Revealer   = Gtk.Template.Child()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        language_manager.connect("downloading", self.update_progress)
-        language_manager.connect("downloaded", self.on_downloaded)
-
+        self._item: LanguageItem | None = None
         self.progress_bar.set_fraction(0.14)
 
-        GLib.idle_add(self.update_ui)
+        language_manager.connect("downloading", self._on_downloading)
+        language_manager.connect("downloaded",  self._on_downloaded)
+
+        GLib.idle_add(self._refresh_ui)
+
+    # ------------------------------------------------------------------ #
+    # Item property                                                        #
+    # ------------------------------------------------------------------ #
 
     @GObject.Property(type=GObject.TYPE_PYOBJECT)
     def item(self) -> LanguageItem | None:
         return self._item
 
     @item.setter
-    def item(self, item: LanguageItem):
-        self._item = item
-        self.label.set_label(self._item.title)
+    def item(self, value: LanguageItem) -> None:
+        self._item = value
+        self.label.set_label(value.title)
 
-    def update_ui(self):
-        # English is a default language, therefore, should be no way to remove it
-        if self._item.code == "eng":
+    # ------------------------------------------------------------------ #
+    # Template callbacks                                                   #
+    # ------------------------------------------------------------------ #
+
+    @Gtk.Template.Callback()
+    def _on_download(self, _btn: Gtk.Button) -> None:
+        if not self._item or self._item.code in language_manager.loading_languages:
+            return
+        language_manager.download(self._item.code)
+        self._refresh_ui()
+
+    @Gtk.Template.Callback()
+    def _on_remove(self, _btn: Gtk.Button) -> None:
+        if not self._item or self._item.code in language_manager.loading_languages:
+            return
+        if self._item.code in language_manager.get_downloaded_codes():
+            language_manager.remove_language(self._item.code)
+            self._refresh_ui()
+
+    # ------------------------------------------------------------------ #
+    # Signal handlers                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _on_downloading(self, _sender, code: str, progress: int) -> None:
+        if self._item and self._item.code == code:
+            GLib.idle_add(self._update_progress, code, progress)
+
+    def _on_downloaded(self, _sender, code: str) -> None:
+        if self._item and self._item.code == code:
+            GLib.idle_add(self._refresh_ui)
+
+    # ------------------------------------------------------------------ #
+    # Private helpers                                                      #
+    # ------------------------------------------------------------------ #
+
+    def _refresh_ui(self) -> None:
+        if not self._item:
+            return
+        code = self._item.code
+
+        # English is always installed and cannot be removed
+        if code == "eng":
             self.install_btn.set_visible(False)
             self.remove_btn.set_sensitive(False)
             return
 
-        # Installed
-        if self._item.code in language_manager.get_downloaded_codes():
-            self.remove_btn.set_visible(True)
-        # In progress
-        elif self._item.code in language_manager.loading_languages:
-            self.install_btn.set_sensitive(False)
-        # Not Installed
-        else:
-            self.install_btn.set_visible(True)
+        is_installed  = code in language_manager.get_downloaded_codes()
+        is_loading    = code in language_manager.loading_languages
+
+        self.install_btn.set_visible(not is_installed and not is_loading)
+        self.install_btn.set_sensitive(not is_loading)
+        self.remove_btn.set_visible(is_installed)
+        if not is_installed:
             self.revealer.set_reveal_child(False)
 
-    def update_progress(self, sender, code: str, progress: float) -> None:
-        if code == self._item.code:
-            GLib.idle_add(self.late_update, code, progress)
-
-    def late_update(self, code, progress):
-        if self._item.code == code:
-            if not self.revealer.get_reveal_child():
-                self.revealer.set_reveal_child(True)
-
-            self.progress_bar.set_fraction(progress / 100)
-            self.progress_bar.set_pulse_step(0.05)
-            logger.debug(f"Downloading {progress / 100}")
-
-            if progress == 100:
-                self.revealer.set_reveal_child(False)
-
-    @Gtk.Template.Callback()
-    def _on_download(self, _: Gtk.Button):
-        if self._item.code in language_manager.loading_languages:
+    def _update_progress(self, code: str, progress: int) -> None:
+        if not self._item or self._item.code != code:
             return
-
-        language_manager.download(self._item.code)
-        self.update_ui()
-
-    @Gtk.Template.Callback()
-    def _on_remove(self, _: Gtk.Button):
-        if self._item.code in language_manager.loading_languages:
-            return
-
-        if self._item.code in language_manager.get_downloaded_codes():
-            language_manager.remove_language(self._item.code)
-            self.update_ui()
-
-    def on_downloaded(self, sender, code):
-        if self._item.code == code:
-            GLib.idle_add(self.update_ui)
+        if not self.revealer.get_reveal_child():
+            self.revealer.set_reveal_child(True)
+        self.progress_bar.set_fraction(progress / 100)
+        logger.debug(f"Downloading {code}: {progress}%")
+        if progress >= 100:
+            self.revealer.set_reveal_child(False)

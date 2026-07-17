@@ -4,13 +4,12 @@
 
 ## Features
 
-- Extract text from screenshots, images, PDFs, QR codes and more
+- Extract text from screenshots, images, QR codes and more
 - Drag and drop image files directly onto the window
 - Paste images from clipboard
 - Auto-copy extracted text to clipboard
 - Automatically open URLs found in QR codes
 - Text-to-speech support
-- Share extracted text directly to email, Telegram, Mastodon and more
 - Multi-language OCR support via Tesseract
 
 ## Installation
@@ -47,10 +46,10 @@ ninja install
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+Lens is licensed under the **GNU General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
 
-Original work copyright © 2021-2025 Andrey Maksimov  
-Modifications copyright © 2026-present Seed-43
+Portions of this project are derived from [Frog](https://github.com/TenderOwl/Frog) by Andrey Maksimov,
+used under the MIT License. The full MIT license text is included in the [LICENSE](LICENSE) file.
 
 ## Contributing
 

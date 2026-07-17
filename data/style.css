@@ -43,3 +43,144 @@
 .lang-selector separator {
   margin: 0 6px;
 }
+
+/* Tab bar active state */
+.tab-bar button:checked {
+  background-color: @accent_bg_color;
+  color: @accent_fg_color;
+}
+
+.tab-bar button:checked:hover {
+  background-color: @accent_bg_color;
+}
+
+/* Fix LinkButton padding in header */
+.header-link {
+  padding: 0;
+  min-height: 0;
+  margin: 0;
+}
+
+.header-link > label {
+  padding: 0;
+}
+
+/* History delete button - hidden until hover */
+.history-del-btn {
+  opacity: 0;
+  transition: opacity 0.1s;
+  padding: 2px;
+  min-width: 0;
+  min-height: 0;
+}
+
+row:hover .history-del-btn {
+  opacity: 1;
+}
+
+row:hover .history-del-btn:hover {
+  color: @destructive_color;
+}
+
+/* History overlay panel - match the sidebar colour */
+.history-panel-box {
+  background: var(--sidebar-bg-color);
+}
+
+/* History toggle button - three dots on right edge */
+.history-toggle-btn {
+  padding: 0;
+  min-width: 24px;
+  min-height: 48px;
+  border-radius: 8px 0 0 8px;
+  border: 0.5px solid @borders;
+  border-right: none;
+  background: @window_bg_color;
+  margin-right: 0;
+}
+
+.history-toggle-btn:hover {
+  background: @headerbar_backdrop_color;
+}
+
+/* Resize handle */
+
+
+/* History close tab on left edge */
+.history-close-tab {
+  padding: 0;
+  min-width: 20px;
+  min-height: 48px;
+  border-radius: 8px 0 0 8px;
+  border: 0.5px solid alpha(@borders, 0.6);
+  border-right: none;
+  background: @window_bg_color;
+}
+
+.history-close-tab:hover {
+  background: @headerbar_backdrop_color;
+}
+
+.history-dot {
+  border-radius: 50%;
+  background: @headerbar_fg_color;
+  opacity: 0.6;
+}
+
+/* History edge button - shown when panel is closed */
+.history-edge-btn {
+  padding: 4px 2px;
+  min-width: 14px;
+  min-height: 48px;
+  border-radius: 6px 0 0 6px;
+  border: 0.5px solid alpha(@borders, 0.5);
+  border-right: none;
+  background: @accent_bg_color;
+  color: @accent_fg_color;
+  margin: 0;
+  box-shadow: none;
+}
+
+.history-edge-btn:hover,
+.history-edge-btn:active,
+.history-edge-btn:focus {
+  background: @accent_bg_color;
+  color: @accent_fg_color;
+  box-shadow: none;
+}
+
+/* Resize handle - invisible, only the pill image shows */
+.history-resize-handle {
+  padding: 0;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  margin: 0;
+  margin-left: -7px;
+}
+
+.history-resize-handle:hover,
+.history-resize-handle:active,
+.history-resize-handle:focus {
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
+/* Solid pill */
+.history-resize-handle image {
+  min-width: 14px;
+  min-height: 48px;
+  border-radius: 6px 0 0 6px;
+  border: none;
+  background: @accent_bg_color;
+  padding: 4px 2px;
+}
+
+.history-resize-handle:hover image,
+.history-resize-handle:active image {
+  background: @accent_bg_color;
+}

@@ -1,46 +1,40 @@
 # language_item.py
 #
-# Copyright 2021-2025 Andrey Maksimov
+# Copyright (C) 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
-#
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 
 from gi.repository import GObject
 
 
 class LanguageItem(GObject.GObject):
-    __gtype_name__ = 'LanguageItem'
+    """
+    A single Tesseract language entry.
 
-    title: str = GObject.Property(type=str)
-    code: str = GObject.Property(type=str)
+    Attributes
+    ----------
+    code:
+        ISO 639-3 / Tesseract language code, e.g. ``"eng"``.
+    title:
+        Human-readable display name, e.g. ``"English"``.
+    selected:
+        Whether this item is currently the active selection.
+    """
+
+    __gtype_name__ = "LanguageItem"
+
+    title:    str  = GObject.Property(type=str)
+    code:     str  = GObject.Property(type=str)
     selected: bool = GObject.Property(type=bool, default=False)
 
     def __init__(self, code: str, title: str, selected: bool = False):
         super().__init__()
-        self.title = title
-        self.code = code
+        self.code     = code
+        self.title    = title
         self.selected = selected
 
-    def __repr__(self):
-        return f'<LanguageItem: {self.title}, {self.code}>'
+    def __repr__(self) -> str:
+        return f"<LanguageItem: {self.title}, {self.code}>"

@@ -2,24 +2,13 @@
 <gresources>
     <gresource prefix="/io/github/seed43/lens">
         <file preprocess="xml-stripblanks">ui/window.ui</file>
-        <file preprocess="xml-stripblanks">ui/welcome_page.ui</file>
-        <file preprocess="xml-stripblanks">ui/extracted_page.ui</file>
         <file preprocess="xml-stripblanks">ui/language_popover.ui</file>
+        <file preprocess="xml-stripblanks">ui/manage_languages_popover.ui</file>
         <file preprocess="xml-stripblanks">ui/language_popover_row.ui</file>
         <file preprocess="xml-stripblanks">ui/language_row.ui</file>
         <file preprocess="xml-stripblanks">ui/shortcuts.ui</file>
-        <file preprocess="xml-stripblanks">ui/preferences_dialog.ui</file>
-        <file preprocess="xml-stripblanks">ui/preferences_general.ui</file>
         <file preprocess="xml-stripblanks">ui/preferences_languages.ui</file>
-        <file preprocess="xml-stripblanks">ui/share_row.ui</file>
         <file>icons/io.github.seed43.lens.svg</file>
         <file>style.css</file>
-        <file>icons/scalable/actions/share-pocket-symbolic.svg</file>
-        <file>icons/scalable/actions/share-mastodon-symbolic.svg</file>
-        <file>icons/scalable/actions/share-telegram-symbolic.svg</file>
-        <file>icons/scalable/actions/share-twitter-symbolic.svg</file>
-        <file>icons/scalable/actions/share-reddit-symbolic.svg</file>
-        <file>icons/scalable/actions/share-instapaper-symbolic.svg</file>
-        <file>icons/scalable/actions/share-email-symbolic.svg</file>
     </gresource>
 </gresources>

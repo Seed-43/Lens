@@ -1,103 +1,262 @@
 # window.py
 #
-# Copyright 2021-2025 Andrey Maksimov
-# Copyright 2026-present Seed-43
+# Copyright (C) 2026-present Seed-43
 #
-# MIT License - see LICENSE file for details
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 from gettext import gettext as _
 from io import BytesIO
 from mimetypes import guess_type
-from typing import List
 from urllib.parse import urlparse
 
-from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk
+from gi.repository import Adw, Gdk, GLib, Gio, Gtk
 from loguru import logger
 
-from lens.config import RESOURCE_PREFIX
+from lens.config import APP_ID, RESOURCE_PREFIX
 from lens.gobject_worker import GObjectWorker
 from lens.language_manager import language_manager
 from lens.services.clipboard_service import ClipboardService, clipboard_service
+from lens.services.history_service import HistoryEntry, history_service
+from lens.services.ocr_engine_service import ocr_engine_service, ENGINES, ENGINE_KEYS
+from lens.services.hotkey_service import hotkey_service
 from lens.services.screenshot_service import ScreenshotService
-from lens.services.share_service import ShareService
-from lens.widgets.extracted_page import ExtractedPage
-from lens.widgets.preferences_dialog import PreferencesDialog
-from lens.widgets.welcome_page import WelcomePage
+from lens.widgets.language_popover import LanguagePopover
+from lens.widgets.manage_languages_popover import ManageLanguagesPopover
 
 
 @Gtk.Template(resource_path=f"{RESOURCE_PREFIX}/ui/window.ui")
 class LensWindow(Adw.ApplicationWindow):
+    """
+    Main application window for Lens.
+
+    Owns the sidebar (Lens + Settings tabs), the content area (text view /
+    empty state), and the overlay history panel.
+    """
+
     __gtype_name__ = "LensWindow"
 
-    toast_overlay: Adw.ToastOverlay = Gtk.Template.Child()
-    split_view: Adw.NavigationSplitView = Gtk.Template.Child()
-    welcome_page: WelcomePage = Gtk.Template.Child()
-    extracted_page: ExtractedPage = Gtk.Template.Child()
+    # ------------------------------------------------------------------ #
+    # Template children                                                    #
+    # ------------------------------------------------------------------ #
 
-    def __init__(self, **kwargs):
+    toast_overlay:            Adw.ToastOverlay    = Gtk.Template.Child()
+    main_nav:                 Adw.NavigationView  = Gtk.Template.Child()
+    app_icon:                 Gtk.Image           = Gtk.Template.Child()
+    version_label:            Gtk.Label           = Gtk.Template.Child()
+    tab_lens:                 Gtk.ToggleButton    = Gtk.Template.Child()
+    tab_settings:             Gtk.ToggleButton    = Gtk.Template.Child()
+    sidebar_stack:            Gtk.Stack           = Gtk.Template.Child()
+    spinner:                  Adw.Spinner         = Gtk.Template.Child()
+    extract_status_label:     Gtk.Label           = Gtk.Template.Child()
+    engine_update_banner:     Adw.Banner          = Gtk.Template.Child()
+
+    # Language selectors
+    lang_combo:               Gtk.MenuButton      = Gtk.Template.Child()
+    language_popover:         LanguagePopover     = Gtk.Template.Child()
+    extra_lang_combo:         Gtk.MenuButton      = Gtk.Template.Child()
+    extra_language_popover:   LanguagePopover     = Gtk.Template.Child()
+    manage_languages_btn:     Gtk.MenuButton      = Gtk.Template.Child()
+    manage_languages_popover: ManageLanguagesPopover = Gtk.Template.Child()
+
+    # Settings controls
+    autocopy_switch:          Gtk.Switch          = Gtk.Template.Child()
+    autolinks_switch:         Gtk.Switch          = Gtk.Template.Child()
+    delete_screenshot_switch: Gtk.Switch          = Gtk.Template.Child()
+    history_days_spin:        Gtk.SpinButton      = Gtk.Template.Child()
+    ocr_engine_dropdown:      Gtk.DropDown        = Gtk.Template.Child()
+    ocr_download_box:         Gtk.Box             = Gtk.Template.Child()
+    ocr_status_label:         Gtk.Label           = Gtk.Template.Child()
+    ocr_download_btn:         Gtk.Button          = Gtk.Template.Child()
+    ocr_uninstall_btn:        Gtk.Button          = Gtk.Template.Child()
+    ocr_progress_bar:         Gtk.ProgressBar     = Gtk.Template.Child()
+
+    # Content area
+    split_view:               Adw.OverlaySplitView = Gtk.Template.Child()
+    content_overlay:          Gtk.Overlay         = Gtk.Template.Child()
+    content_stack:            Gtk.Stack           = Gtk.Template.Child()
+    text_view:                Gtk.TextView        = Gtk.Template.Child()
+    buffer:                   Gtk.TextBuffer      = Gtk.Template.Child()
+
+    # History panel
+    history_panel:            Gtk.Box             = Gtk.Template.Child()
+    history_inner:            Gtk.Box             = Gtk.Template.Child()
+    history_resize_handle:    Gtk.Button          = Gtk.Template.Child()
+    history_list:             Gtk.ListBox         = Gtk.Template.Child()
+    history_open_btn:         Gtk.Button          = Gtk.Template.Child()
+    history_close_btn:        Gtk.Button          = Gtk.Template.Child()
+    history_clear_all_btn:    Gtk.Button          = Gtk.Template.Child()
+    history_edge_btn:         Gtk.Button          = Gtk.Template.Child()
+
+    # ------------------------------------------------------------------ #
+    # Initialisation                                                       #
+    # ------------------------------------------------------------------ #
+
+    def __init__(self, version: str | None = None, **kwargs):
         super().__init__(**kwargs)
 
-        self.current_size = None
-        self.open_file_dlg = None
+        self.version = version
+        self._open_file_dlg: Gtk.FileDialog | None = None
         self.settings = Gtk.Application.get_default().props.settings
 
+        self._init_header(version)
+        self._init_language_selectors()
+        self._init_settings_bindings()
+        self._init_ocr_engine()
+        self._init_history()
+        self._init_screenshot_backend()
+        self._init_clipboard()
+        self._init_drag_and_drop()
+        self._init_window_size()
+
+        self.tab_lens.connect("toggled", self._on_tab_toggled)
+        self.tab_settings.connect("toggled", self._on_tab_toggled)
+
+        self.content_stack.set_visible_child_name("empty")
+
+        # Give the window a moment to settle before hitting the network.
+        GLib.timeout_add_seconds(3, self._check_engine_updates)
+
+    def _init_header(self, version: str | None) -> None:
+        self.app_icon.set_from_resource(f"{RESOURCE_PREFIX}/icons/{APP_ID}.svg")
+        if version:
+            self.version_label.set_label(version)
+
+    def _init_language_selectors(self) -> None:
         language_manager.active_language = language_manager.get_language_item(
             self.settings.get_string("active-language")
         )
+        self.lang_combo.set_label(
+            language_manager.get_language(self.settings.get_string("active-language"))
+        )
+        self.language_popover.connect("language-changed", self._on_language_changed)
 
-        self.install_action("window.share", "s", self._on_share)
+        extra_lang = language_manager.get_language(self.settings.get_string("extra-language"))
+        self.extra_lang_combo.set_label(extra_lang or _("None"))
+        self.extra_language_popover.connect("language-changed", self._on_extra_language_changed)
+        self.extra_language_popover._set_active = False
+        self.manage_languages_btn.set_label(_("Download / Remove"))
 
-        # Drag-and-drop
-        drop_target = Gtk.DropTarget.new(type=Gdk.FileList, actions=Gdk.DragAction.COPY)
-        drop_target.connect("drop", self.on_dnd_drop)
-        drop_target.connect("enter", self.on_dnd_enter)
-        drop_target.connect("leave", self.on_dnd_leave)
-        self.split_view.add_controller(drop_target)
+    def _init_settings_bindings(self) -> None:
+        self.settings.bind("autocopy",  self.autocopy_switch,  "active", Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind("autolinks", self.autolinks_switch, "active", Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind("delete-screenshot", self.delete_screenshot_switch, "active", Gio.SettingsBindFlags.DEFAULT)
 
-        self.props.default_width = self.settings.get_int("window-width")
-        self.props.default_height = self.settings.get_int("window-height")
-
+    def _init_screenshot_backend(self) -> None:
         self.backend = ScreenshotService()
-        self.backend.connect("decoded", self.on_shot_done)
-        self.backend.connect("error", self.on_shot_error)
+        self.backend.connect("text-ready", self._on_text_ready)
+        self.backend.connect("error",      self._on_backend_error)
 
-        self.extracted_page.connect("go-back", self.show_welcome_page)
+    def _init_clipboard(self) -> None:
+        clipboard_service.connect("image-ready", self._on_clipboard_image_ready)
+        clipboard_service.connect("error",       self._on_display_error)
 
-        clipboard_service.connect("paste_from_clipboard", self._on_paste_from_clipboard)
-        clipboard_service.connect("error", self.display_error)
+    def _init_drag_and_drop(self) -> None:
+        drop = Gtk.DropTarget.new(type=Gdk.FileList, actions=Gdk.DragAction.COPY)
+        drop.connect("drop",  self._on_dnd_drop)
+        drop.connect("enter", self._on_dnd_enter)
+        drop.connect("leave", self._on_dnd_leave)
+        self.add_controller(drop)
 
-    @GObject.Property(type=str)
-    def active_lang(self):
-        return self.settings.get_string("active-language")
+    def _init_window_size(self) -> None:
+        saved_w = self.settings.get_int("window-width")
+        saved_h = self.settings.get_int("window-height")
+        self.props.default_width  = saved_w if saved_w > 0 else 800
+        self.props.default_height = saved_h if saved_h > 0 else 605
 
-    @active_lang.setter
-    def active_lang(self, lang_code: str):
-        self.settings.set_string("active-language", lang_code)
+    # ------------------------------------------------------------------ #
+    # Tab switching                                                        #
+    # ------------------------------------------------------------------ #
 
+    def _on_tab_toggled(self, _btn: Gtk.ToggleButton) -> None:
+        name = "lens" if self.tab_lens.get_active() else "settings"
+        self.sidebar_stack.set_visible_child_name(name)
+
+    # ------------------------------------------------------------------ #
+    # Language                                                             #
+    # ------------------------------------------------------------------ #
+
+    def _on_language_changed(self, _, language) -> None:
+        self.lang_combo.set_label(language.title)
+        self.settings.set_string("active-language", language.code)
+        self.settings.sync()
+
+    def _on_extra_language_changed(self, _, language) -> None:
+        self.extra_lang_combo.set_label(language.title)
+        self.settings.set_string("extra-language", language.code)
+        self.settings.sync()
+
+    def _get_lang(self) -> str:
+        """Return the active Tesseract language string, e.g. ``"eng+fra"``."""
+        active = language_manager.active_language.code
+        extra  = self.settings.get_string("extra-language")
+        if extra and extra != active:
+            return f"{active}+{extra}"
+        return active
+
+    def _current_engine(self) -> str:
+        """Return the key of the engine chosen in the dropdown."""
+        return ENGINE_KEYS[self.ocr_engine_dropdown.get_selected()]
+
+    # Keep old name so main.py callers still work
     def get_language(self) -> str:
-        self.active_lang = language_manager.active_language.code
-        extra_lang = self.settings.get_string("extra-language")
-        return f"{self.active_lang}+{extra_lang}"
+        return self._get_lang()
+
+    # ------------------------------------------------------------------ #
+    # Screenshot / image extraction                                        #
+    # ------------------------------------------------------------------ #
+
+    def _extracting_message(self, engine: str) -> str:
+        if engine == "tesseract":
+            return _("Decoding your image, please wait…")
+        label = ENGINES[engine]["label"]
+        return _("{}: Decoding your image, please wait…").format(label)
+
+    def _start_extracting(self, engine: str) -> None:
+        self.extract_status_label.set_label(self._extracting_message(engine))
+        self.extract_status_label.set_visible(True)
+        self.spinner.set_visible(True)
+
+    def _stop_extracting(self) -> None:
+        self.spinner.set_visible(False)
+        self.extract_status_label.set_visible(False)
 
     def get_screenshot(self, copy: bool = False) -> None:
-        self.extracted_page.listen_cancel()
-        lang = self.get_language()
-        self.hide()
-        self.backend.capture(lang, copy)
+        """Trigger the interactive screenshot selector and extract text."""
+        engine = self._current_engine()
+        self._start_extracting(engine)
+        self.backend.capture(
+            self._get_lang(),
+            copy,
+            engine,
+            self.settings.get_boolean("delete-screenshot"),
+        )
 
-    def on_shot_done(self, sender, text: str, copy: bool) -> None:
-        is_url = self.uri_validator(text)
+    def _on_text_ready(self, _sender, text: str, copy: bool) -> None:
+        """Handle successfully extracted text."""
         try:
-            self.extracted_page.extracted_text = text
+            self.buffer.set_text(text)
+            self.content_stack.set_visible_child_name("text")
+            history_service.add(text)
+            self.tab_lens.set_active(True)
 
             if self.settings.get_boolean("autocopy") or copy:
                 clipboard_service.set(text)
                 self.show_toast(_("Text copied to clipboard"))
 
-            if is_url:
+            if self.uri_validator(text):
                 if self.settings.get_boolean("autolinks"):
-                    launcher = Gtk.UriLauncher.new(text)
-                    launcher.launch()
+                    Gtk.UriLauncher.new(text).launch()
                     self.show_toast(_("QR-code URL opened"), priority=Adw.ToastPriority.HIGH)
                 else:
                     toast = Adw.Toast(
@@ -108,128 +267,491 @@ class LensWindow(Adw.ApplicationWindow):
                     toast.set_detailed_action_name(f'app.show_uri("{text}")')
                     self.toast_overlay.add_toast(toast)
 
-            self.split_view.set_show_content(True)
-
-        except Exception as e:
-            logger.debug(f"ERROR: {e}")
+        except Exception as exc:
+            logger.debug(f"on_text_ready error: {exc}")
         finally:
-            self.present()
-            self.welcome_page.spinner.set_visible(False)
+            self._stop_extracting()
 
-    def on_shot_error(self, sender, message: str) -> None:
-        self.present()
-        self.welcome_page.spinner.set_visible(False)
+    def _on_backend_error(self, _sender, message: str) -> None:
+        self._stop_extracting()
         if message and message != "Cancelled":
             self.show_toast(message)
 
-    def open_image(self):
-        self.open_file_dlg = Gtk.FileDialog()
+    # ------------------------------------------------------------------ #
+    # Open image                                                           #
+    # ------------------------------------------------------------------ #
 
-        file_filters = Gio.ListStore.new(Gtk.FileFilter)
-        file_filter = Gtk.FileFilter()
-        file_filter.set_name(_("Supported image files"))
-        file_filter.add_mime_type("image/png")
-        file_filter.add_mime_type("image/jpeg")
-        file_filter.add_mime_type("image/jpg")
-        file_filters.append(file_filter)
+    def open_image(self) -> None:
+        """Show a file-chooser dialog and extract text from the chosen image."""
+        self._open_file_dlg = Gtk.FileDialog()
 
-        self.open_file_dlg.set_title(_("Open image to extract text"))
-        self.open_file_dlg.set_filters(file_filters)
-        self.open_file_dlg.open(self, None, self.on_open_image)
+        filters = Gio.ListStore.new(Gtk.FileFilter)
+        f = Gtk.FileFilter()
+        f.set_name(_("Image files"))
+        for mime in ("image/png", "image/jpeg", "image/jpg", "image/webp"):
+            f.add_mime_type(mime)
+        filters.append(f)
 
-    def on_open_image(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
+        self._open_file_dlg.set_title(_("Open image to extract text"))
+        self._open_file_dlg.set_filters(filters)
+        self._open_file_dlg.open(self, None, self._on_image_chosen)
+
+    def _on_image_chosen(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
         try:
             item = dialog.open_finish(result)
-            lang = self.get_language()
-            self.welcome_page.spinner.set_visible(True)
-            GObjectWorker.call(self.backend.decode_image, (lang, item.get_path()))
-        except GLib.Error as e:
-            if not e.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
-                logger.debug(e)
+            engine = self._current_engine()
+            self._start_extracting(engine)
+            GObjectWorker.call(
+                self.backend.decode_image,
+                (self._get_lang(), item.get_path(), False, False, engine),
+            )
+        except GLib.Error as exc:
+            if not exc.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                logger.debug(exc)
 
-    def _on_paste_from_clipboard(self, _clipboard: ClipboardService, texture: Gdk.Texture):
-        pngbytes = BytesIO(texture.save_to_png_bytes().get_data())
+    # ------------------------------------------------------------------ #
+    # Clipboard paste                                                      #
+    # ------------------------------------------------------------------ #
+
+    def on_paste_from_clipboard(self, _sender) -> None:
+        """Request an image read from the system clipboard."""
+        clipboard_service.read_image()
+
+    def _on_clipboard_image_ready(self, _svc: ClipboardService, texture: Gdk.Texture) -> None:
+        buf = BytesIO(texture.save_to_png_bytes().get_data())
         try:
-            lang = self.get_language()
-            self.welcome_page.spinner.set_visible(True)
-            GObjectWorker.call(self.backend.decode_image, (lang, pngbytes))
-        except GLib.Error as e:
-            if not e.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
-                logger.debug(e)
+            engine = self._current_engine()
+            self._start_extracting(engine)
+            GObjectWorker.call(
+                self.backend.decode_image,
+                (self._get_lang(), buf, False, False, engine),
+            )
+        except GLib.Error as exc:
+            if not exc.matches(Gio.io_error_quark(), Gio.IOErrorEnum.CANCELLED):
+                logger.debug(exc)
 
-    def on_paste_from_clipboard(self, sender) -> None:
-        clipboard_service.read_texture()
+    # ------------------------------------------------------------------ #
+    # Copy extracted text                                                  #
+    # ------------------------------------------------------------------ #
 
-    def on_listen(self):
-        if not self.split_view.get_show_content():
-            self.extracted_page.listen()
+    def on_copy_to_clipboard(self, _sender) -> None:
+        text = self.buffer.get_text(
+            self.buffer.get_start_iter(),
+            self.buffer.get_end_iter(),
+            False,
+        )
+        if text:
+            clipboard_service.set(text)
+            self.show_toast(_("Text copied"))
 
-    def on_listen_cancel(self):
-        self.extracted_page.listen_cancel()
+    # ------------------------------------------------------------------ #
+    # Drag-and-drop                                                        #
+    # ------------------------------------------------------------------ #
 
-    def display_error(self, sender, error) -> None:
-        logger.debug(f"Error: {error}")
-        message = str(error).split(":")[-1] if not isinstance(error, str) else error
-        self.show_toast(message)
-
-    def on_dnd_enter(self, drop_target, x, y):
+    def _on_dnd_enter(self, _drop, _x, _y):
         self.add_css_class("drop_hover")
         return Gdk.DragAction.COPY
 
-    def on_dnd_leave(self, user_data=None):
+    def _on_dnd_leave(self, *_) -> None:
         self.remove_css_class("drop_hover")
 
-    def on_dnd_drop(self, drop_target, value: Gdk.FileList, x: int, y: int) -> None:
-        files: List[Gio.File] = value.get_files()
+    def _on_dnd_drop(self, _drop, value: Gdk.FileList, _x: int, _y: int) -> None:
+        files = value.get_files()
         if not files:
             return
-
         item = files[0]
-        (mimetype, encoding) = guess_type(item.get_path())
-        logger.debug(f"Dropped item ({mimetype}): {item.get_path()}")
-        if not mimetype or not mimetype.startswith("image"):
-            return self.show_toast(_("Only images can be processed that way."))
+        mime, _ = guess_type(item.get_path())
+        logger.debug(f"DnD drop: {mime} — {item.get_path()}")
+        if not mime or not mime.startswith("image"):
+            self.show_toast(_("Only images can be processed that way."))
+            return
+        engine = self._current_engine()
+        self._start_extracting(engine)
+        GObjectWorker.call(
+            self.backend.decode_image,
+            (self._get_lang(), item.get_path(), False, False, engine),
+        )
 
-        lang = self.get_language()
-        self.welcome_page.spinner.set_visible(True)
-        GObjectWorker.call(self.backend.decode_image, (lang, item.get_path()))
+    # ------------------------------------------------------------------ #
+    # History panel                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _init_ocr_engine(self) -> None:
+        """Initialise OCR engine selector."""
+        saved = self.settings.get_string("ocr-engine")
+        idx = ENGINE_KEYS.index(saved) if saved in ENGINE_KEYS else 0
+        self.ocr_engine_dropdown.set_selected(idx)
+        self.ocr_engine_dropdown.connect("notify::selected", self._on_ocr_engine_changed)
+
+        # Tooltips for each engine option
+        tooltips = [
+            _("Tesseract 5 — Default engine. Fast, offline, 100+ languages. Best for clean printed text."),
+            _("EasyOCR — Better accuracy on photos, handwriting and complex backgrounds. Requires download (~2.5 GB)."),
+            _("PaddleOCR — Excellent for Asian languages and rotated text. Requires download (~1 GB)."),
+            _("docTR — Best for structured documents and multi-column layouts. Requires download (~2 GB)."),
+        ]
+        self._ocr_tooltips = tooltips
+        self._ocr_downloading = False
+        self._ocr_pulse_id = 0
+        self._downloading_engine: str | None = None
+        self._pending_updates: dict[str, str] = {}
+        self._banner_engine: str | None = None
+        self.ocr_engine_dropdown.set_tooltip_text(tooltips[idx])
+        self.ocr_download_btn.connect("clicked",  self._on_ocr_download)
+        self.ocr_uninstall_btn.connect("clicked", self._on_ocr_uninstall)
+        self.engine_update_banner.connect("button-clicked", self._on_engine_update_clicked)
+        ocr_engine_service.connect("download-progress", self._on_ocr_download_progress)
+        ocr_engine_service.connect("download-done",     self._on_ocr_download_done)
+        ocr_engine_service.connect("uninstall-done",    self._on_ocr_uninstall_done)
+        ocr_engine_service.connect("engine-fallback",   self._on_ocr_fallback)
+        ocr_engine_service.connect("update-available",  self._on_engine_update_available)
+        self._update_ocr_status()
+
+    def _on_ocr_engine_changed(self, dropdown, _param) -> None:
+        idx = dropdown.get_selected()
+        engine = ENGINE_KEYS[idx]
+        self.settings.set_string("ocr-engine", engine)
+        self.settings.sync()
+        self.ocr_engine_dropdown.set_tooltip_text(self._ocr_tooltips[idx])
+        self._update_ocr_status()
+
+    def _update_ocr_status(self) -> None:
+        """
+        Refresh the download/uninstall row for the selected engine.
+
+        The installed check talks to the host over D-Bus, so it runs on
+        a worker thread and the result is applied back on the main loop.
+        """
+        if self._ocr_downloading:
+            return
+        engine = self._current_engine()
+        self.ocr_uninstall_btn.set_visible(False)
+        GObjectWorker.call(
+            ocr_engine_service.is_installed,
+            (engine,),
+            lambda installed: self._apply_ocr_status(engine, installed),
+        )
+
+    def _apply_ocr_status(self, engine: str, installed: bool) -> None:
+        # The user may have switched engines while the check ran.
+        if engine != self._current_engine() or self._ocr_downloading:
+            return
+        logger.debug(f"OCR engine: {engine}, installed: {installed}")
+        if installed:
+            self.ocr_download_box.set_visible(False)
+            self.ocr_uninstall_btn.set_visible(engine != "tesseract")
+        else:
+            label = ENGINES[engine]["label"]
+            self.ocr_status_label.set_label(_("{} is not installed.").format(label))
+            self.ocr_download_box.set_visible(True)
+            self.ocr_download_btn.set_sensitive(True)
+            self.ocr_download_btn.set_label(_("Download"))
+            self.ocr_progress_bar.set_visible(False)
+
+    def _on_ocr_download(self, _btn) -> None:
+        self._begin_engine_download(self._current_engine())
+
+    def _begin_engine_download(self, engine: str) -> None:
+        """Kick off an install/upgrade for *engine* (used by both the
+        Settings page button and the update banner)."""
+        logger.debug(f"Starting download of engine: {engine}")
+        self._downloading_engine = engine
+        if engine == self._current_engine():
+            self._ocr_downloading = True
+            self.ocr_download_btn.set_sensitive(False)
+            self.ocr_download_btn.set_label(_("Downloading…"))
+            self.ocr_engine_dropdown.set_sensitive(False)
+            self.ocr_progress_bar.set_visible(True)
+            self._ocr_pulse_id = GLib.timeout_add(120, self._ocr_pulse)
+        ocr_engine_service.install(engine)
+
+    def _ocr_pulse(self) -> bool:
+        self.ocr_progress_bar.pulse()
+        return True
+
+    def _stop_ocr_pulse(self) -> None:
+        if self._ocr_pulse_id:
+            GLib.source_remove(self._ocr_pulse_id)
+            self._ocr_pulse_id = 0
+        self.ocr_progress_bar.set_visible(False)
+
+    def _on_ocr_download_progress(self, _svc, msg: str) -> None:
+        if self._downloading_engine == self._current_engine():
+            self.ocr_status_label.set_label(msg)
+
+    def _on_ocr_download_done(self, _svc, success: bool) -> None:
+        engine = self._downloading_engine
+        self._downloading_engine = None
+
+        if engine == self._current_engine():
+            self._ocr_downloading = False
+            self._stop_ocr_pulse()
+            self.ocr_engine_dropdown.set_sensitive(True)
+            if success:
+                self.ocr_download_box.set_visible(False)
+            else:
+                self.ocr_status_label.set_label(_("Download failed. Check your connection."))
+                self.ocr_download_btn.set_sensitive(True)
+                self.ocr_download_btn.set_label(_("Retry"))
+            self._update_ocr_status()
+
+        if engine:
+            label = ENGINES[engine]["label"]
+            if engine != self._current_engine():
+                self.show_toast(
+                    _("{} is ready").format(label) if success
+                    else _("Could not update {}").format(label)
+                )
+            elif success:
+                self.show_toast(_("{} is ready").format(label))
+
+        # Whether this run came from the banner or not, move the queue on.
+        self._banner_engine = None
+        self._show_next_update_banner()
+
+    # ------------------------------------------------------------------ #
+    # Engine update checking                                              #
+    # ------------------------------------------------------------------ #
+
+    def _check_engine_updates(self) -> bool:
+        ocr_engine_service.check_updates()
+        return False  # one-shot timeout
+
+    def _on_engine_update_available(self, _svc, engine: str, latest_version: str) -> None:
+        self._pending_updates[engine] = latest_version
+        if not self._banner_engine:
+            self._show_next_update_banner()
+
+    def _show_next_update_banner(self) -> None:
+        if not self._pending_updates:
+            self.engine_update_banner.set_revealed(False)
+            self._banner_engine = None
+            return
+        engine, version = next(iter(self._pending_updates.items()))
+        self._banner_engine = engine
+        label = ENGINES[engine]["label"]
+        self.engine_update_banner.set_title(
+            _("{} update available — v{}").format(label, version)
+        )
+        self.engine_update_banner.set_revealed(True)
+
+    def _on_engine_update_clicked(self, _banner) -> None:
+        engine = self._banner_engine
+        if not engine:
+            return
+        self._pending_updates.pop(engine, None)
+        self.engine_update_banner.set_revealed(False)
+        label = ENGINES[engine]["label"]
+        self.show_toast(_("Updating {}…").format(label))
+        self._begin_engine_download(engine)
+
+    def _on_ocr_uninstall(self, _btn) -> None:
+        engine = self._current_engine()
+        label = ENGINES[engine]["label"]
+        dialog = Adw.AlertDialog(
+            heading=_("Remove {}?").format(label),
+            body=_("The engine will be deleted from disk. You can download it again at any time."),
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("remove", _("Remove"))
+        dialog.set_response_appearance("remove", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.connect("response", self._on_ocr_uninstall_response, engine)
+        dialog.present(self)
+
+    def _on_ocr_uninstall_response(self, _dialog, response: str, engine: str) -> None:
+        if response != "remove":
+            return
+        self.ocr_uninstall_btn.set_sensitive(False)
+        ocr_engine_service.uninstall(engine)
+
+    def _on_ocr_uninstall_done(self, _svc, success: bool) -> None:
+        self.ocr_uninstall_btn.set_sensitive(True)
+        self.show_toast(
+            _("OCR engine removed") if success else _("Could not remove engine")
+        )
+        self._update_ocr_status()
+
+    def _on_ocr_fallback(self, _svc, label: str) -> None:
+        self.show_toast(
+            _("{} failed — used Tesseract instead").format(label),
+            timeout=4,
+        )
+
+    def _init_history(self) -> None:
+        history_service.connect("changed", self._on_history_changed)
+
+        days = self.settings.get_int("history-days")
+        self.history_days_spin.set_value(days)
+        self.history_days_spin.connect("value-changed", self._on_history_days_changed)
+        history_service.purge_old(days)
+
+        self.history_panel.add_css_class("history-panel-box")
+        self.history_open_btn.connect("clicked",  self._on_history_toggle)
+        self.history_close_btn.connect("clicked", self._on_history_toggle)
+        self.history_edge_btn.connect("clicked",   self._on_history_toggle)
+        self.history_resize_handle.connect("clicked", self._on_history_toggle)
+        self.history_clear_all_btn.connect("clicked", self._on_history_clear_all)
+
+        self._history_dragging   = False
+        self._drag_start_width   = 200
+        drag = Gtk.GestureDrag()
+        drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        drag.connect("drag-begin",  self._on_history_drag_begin)
+        drag.connect("drag-update", self._on_history_drag_update)
+        drag.connect("drag-end",    self._on_history_drag_end)
+        self.history_resize_handle.add_controller(drag)
+
+        self._refresh_history()
+
+    def _on_history_toggle(self, _btn) -> None:
+        visible = not self.history_panel.get_visible()
+        self.history_panel.set_visible(visible)
+        self.history_edge_btn.set_visible(not visible)
+
+    def _on_history_days_changed(self, spin: Gtk.SpinButton) -> None:
+        days = int(spin.get_value())
+        self.settings.set_int("history-days", days)
+        self.settings.sync()
+        history_service.purge_old(days)
+
+    def _on_history_drag_begin(self, _gesture, _x, _y) -> None:
+        self._history_dragging  = True
+        self._drag_start_width  = self.history_panel.get_allocated_width()
+
+    def _on_history_drag_update(self, _gesture, offset_x: float, _offset_y: float) -> None:
+        if not self._history_dragging:
+            return
+        max_w    = self.content_overlay.get_allocated_width() - 20
+        new_w    = max(160, min(int(self._drag_start_width - offset_x), max_w))
+        self.history_inner.set_size_request(new_w, -1)
+        self.history_panel.queue_resize()
+
+    def _on_history_drag_end(self, _gesture, _ox, _oy) -> None:
+        self._history_dragging = False
+
+    def _refresh_history(self) -> None:
+        # Disconnect old row-selected signal to avoid duplicates
+        try:
+            self.history_list.disconnect_by_func(self._on_history_row_selected)
+        except Exception:
+            pass
+
+        while row := self.history_list.get_row_at_index(0):
+            self.history_list.remove(row)
+
+        for entry in history_service.entries():
+            self.history_list.append(self._make_history_row(entry))
+
+        self.history_list.connect("row-selected", self._on_history_row_selected)
+
+    def _make_history_row(self, entry: HistoryEntry) -> Gtk.ListBoxRow:
+        row          = Gtk.ListBoxRow()
+        row.entry_id = entry.id
+        row.entry_text = entry.text
+
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(10)
+        box.set_margin_end(6)
+
+        text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        text_box.set_hexpand(True)
+
+        time_lbl = Gtk.Label(label=entry.friendly_time(), xalign=0)
+        time_lbl.add_css_class("caption")
+        time_lbl.add_css_class("dim-label")
+
+        prev_lbl = Gtk.Label(label=entry.preview(), xalign=0)
+        prev_lbl.add_css_class("caption")
+        prev_lbl.set_ellipsize(3)
+        prev_lbl.set_max_width_chars(20)
+
+        text_box.append(time_lbl)
+        text_box.append(prev_lbl)
+        box.append(text_box)
+
+        del_btn = Gtk.Button(icon_name="user-trash-symbolic", has_frame=False)
+        del_btn.add_css_class("flat")
+        del_btn.add_css_class("history-del-btn")
+        del_btn.set_tooltip_text(_("Delete this entry"))
+        del_btn.connect("clicked", self._on_history_delete, entry.id)
+        box.append(del_btn)
+
+        row.set_child(box)
+        return row
+
+    def _on_history_row_selected(self, _listbox, row) -> None:
+        if row:
+            self.buffer.set_text(row.entry_text)
+            self.content_stack.set_visible_child_name("text")
+            self.tab_lens.set_active(True)
+
+    def _on_history_delete(self, _btn, entry_id: str) -> None:
+        history_service.delete(entry_id)
+
+    def _on_history_clear_all(self, _btn) -> None:
+        dialog = Adw.AlertDialog(
+            heading=_("Delete all history?"),
+            body=_("This cannot be undone."),
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("delete", _("Delete All"))
+        dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.connect(
+            "response",
+            lambda d, r: history_service.clear() if r == "delete" else None,
+        )
+        dialog.present(self)
+
+    def _on_history_changed(self, _) -> None:
+        self._refresh_history()
+
+    # ------------------------------------------------------------------ #
+    # Error display                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _on_display_error(self, _sender, error) -> None:
+        msg = str(error).split(":")[-1] if not isinstance(error, str) else error
+        self.show_toast(msg)
+
+    # ------------------------------------------------------------------ #
+    # Window lifecycle                                                     #
+    # ------------------------------------------------------------------ #
 
     def do_close_request(self) -> bool:
-        size = self.get_default_size()
-        self.settings.set_int("window-width", size[0])
-        self.settings.set_int("window-height", size[1])
+        w, h = self.get_default_size()
+        self.settings.set_int("window-width",  w)
+        self.settings.set_int("window-height", h)
         self.settings.sync()
         return False
 
-    def on_copy_to_clipboard(self, sender) -> None:
-        text = self.extracted_page.extracted_text
-        clipboard_service.set(text)
-        self.show_toast(_("Text copied"))
+    # ------------------------------------------------------------------ #
+    # Public helpers                                                       #
+    # ------------------------------------------------------------------ #
 
-    def show_preferences(self):
-        PreferencesDialog().present(self)
+    def clear_text(self) -> None:
+        """Clear the text view and return to empty state."""
+        self.buffer.set_text("")
+        self.content_stack.set_visible_child_name("empty")
 
-    def show_welcome_page(self, *_):
-        self.split_view.set_show_content(False)
-        self.extracted_page.listen_cancel()
-
-    def _on_share(self, _sender: Gtk.Widget, _action_name: str, provider: GLib.Variant):
-        service = ShareService()
-        provider_name = provider.get_string().lower()
-        text = self.extracted_page.extracted_text
-        if provider_name in ShareService.providers() and text:
-            service.share(provider_name, text)
-
-    def show_toast(self, title: str, timeout: int = 2,
-                   priority: Adw.ToastPriority = Adw.ToastPriority.NORMAL):
+    def show_toast(
+        self,
+        title: str,
+        timeout: int = 2,
+        priority: Adw.ToastPriority = Adw.ToastPriority.NORMAL,
+    ) -> None:
         self.toast_overlay.add_toast(
             Adw.Toast(title=title, timeout=timeout, priority=priority)
         )
 
-    def uri_validator(self, link) -> bool:
+    def uri_validator(self, link: str) -> bool:
         try:
-            result = urlparse(link)
-            return all([result.scheme, result.netloc])
-        except Exception as e:
-            logger.debug(e)
+            r = urlparse(link)
+            return bool(r.scheme and r.netloc)
+        except Exception:
             return False
+
+    # Keep for compatibility with preferences action in main.py
+    def show_preferences(self) -> None:
+        self.tab_settings.set_active(True)

@@ -1,20 +1,20 @@
 {
-    "app-id" : "io.github.seed43.lens",
-    "runtime" : "org.gnome.Platform",
-    "runtime-version" : "49",
-    "sdk" : "org.gnome.Sdk",
-    "command" : "lens",
-    "finish-args" : [
+    "app-id": "io.github.seed43.lens",
+    "runtime": "org.gnome.Platform",
+    "runtime-version": "49",
+    "sdk": "org.gnome.Sdk",
+    "command": "lens",
+    "finish-args": [
         "--share=network",
-        "--share=ipc",
-        "--socket=fallback-x11",
         "--socket=wayland",
-        "--socket=pulseaudio",
         "--device=dri",
         "--talk-name=org.freedesktop.Notifications",
-        "--filesystem=xdg-pictures"
+        "--filesystem=xdg-pictures",
+        "--talk-name=org.gnome.settings-daemon.plugins.media-keys",
+        "--metadata=X-DConf=migrate-path=/io/github/seed43/lens/",
+        "--talk-name=org.freedesktop.Flatpak"
     ],
-    "cleanup" : [
+    "cleanup": [
         "/include",
         "/lib/pkgconfig",
         "/man",
@@ -25,15 +25,15 @@
         "*.la",
         "*.a"
     ],
-    "modules" : [
+    "modules": [
         {
-            "name" : "blueprint-compiler",
-            "buildsystem" : "meson",
-            "sources" : [
+            "name": "blueprint-compiler",
+            "buildsystem": "meson",
+            "sources": [
                 {
-                    "type" : "git",
-                    "url" : "https://gitlab.gnome.org/jwestman/blueprint-compiler.git",
-                    "tag" : "v0.16.0"
+                    "type": "git",
+                    "url": "https://gitlab.gnome.org/jwestman/blueprint-compiler.git",
+                    "tag": "v0.16.0"
                 }
             ]
         },
@@ -42,15 +42,14 @@
         "libportal.json",
         "zbar.json",
         "python3-modules.json",
-        "python3-gTTS.json",
         {
-            "name" : "lens",
-            "builddir" : true,
-            "buildsystem" : "meson",
-            "sources" : [
+            "name": "lens",
+            "builddir": true,
+            "buildsystem": "meson",
+            "sources": [
                 {
-                    "type" : "dir",
-                    "path" : ".."
+                    "type": "dir",
+                    "path": ".."
                 }
             ]
         }

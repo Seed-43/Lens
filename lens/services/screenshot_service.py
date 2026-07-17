@@ -1,159 +1,204 @@
 # screenshot_service.py
 #
-# Copyright 2022-2025 Andrey Maksimov
-# Copyright 2026-present Seed-43
+# Copyright (C) 2026-present Seed-43
 #
-# Permission is hereby granted, free of charge, to any person obtaining
-# a copy of this software and associated documentation files (the
-# "Software"), to deal in the Software without restriction, including
-# without limitation the rights to use, copy, modify, merge, publish,
-# distribute, sublicense, and/or sell copies of the Software, and to
-# permit persons to whom the Software is furnished to do so, subject to
-# the following conditions:
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-# The above copyright notice and this permission notice shall be
-# included in all copies or substantial portions of the Software.
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
 #
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-# NONINFRINGEMENT. IN NO EVENT SHALL THE X CONSORTIUM BE LIABLE FOR ANY
-# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
-# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-#
-# Except as contained in this notice, the name(s) of the above copyright
-# holders shall not be used in advertising or otherwise to promote the sale,
-# use or other dealings in this Software without prior written
-# authorization.
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 import os
 from gettext import gettext as _
+from io import BytesIO
+from typing import Union
 
-from gi.repository import GObject, Gio, GLib, Xdp
+from PIL import Image
+from gi.repository import Gio, GLib, GObject, Xdp
 from loguru import logger
+from pyzbar.pyzbar import decode as decode_qr
 
-from lens.config import tessdata_config
-
-try:
-    from PIL import Image
-except ImportError:
-    import Image
-import pytesseract
-from pyzbar.pyzbar import decode
+from lens.gobject_worker import GObjectWorker
+from lens.services.ocr_engine_service import ocr_engine_service
 
 
 class ScreenshotService(GObject.GObject):
     """
-    ScreenshotBackend class
+    Captures screenshots via the XDG Desktop Portal and extracts text
+    or decodes QR codes from images.
 
-    This class is used to capture screenshots and recognize text from them.
+    All heavy work (QR decoding, OCR) runs on a worker thread; signals
+    are always delivered on the GLib main loop.
+
+    Signals
+    -------
+    text-ready(str, bool)
+        Emitted when extraction succeeds.  The first argument is the
+        extracted text; the second indicates whether the caller requested
+        the result be copied to the clipboard.
+    error(str)
+        Emitted when any step fails, carrying a human-readable message.
     """
 
     __gtype_name__ = "ScreenshotService"
 
     __gsignals__ = {
-        "error": (GObject.SIGNAL_RUN_LAST, None, (str,)),
-        "decoded": (
-            GObject.SIGNAL_RUN_FIRST,
-            None,
-            (
-                str,
-                bool,
-            ),
-        ),
+        "text-ready": (GObject.SIGNAL_RUN_FIRST, None, (str, bool)),
+        "error":      (GObject.SIGNAL_RUN_LAST,  None, (str,)),
     }
 
     def __init__(self):
-        """
-        Initialize ScreenshotBackend class
-        """
-        GObject.GObject.__init__(self)
+        super().__init__()
+        self._portal = Xdp.Portal()
 
-        self.cancelable: Gio.Cancellable = Gio.Cancellable.new()
-        self.cancelable.connect(self.capture_cancelled)
-        self.portal = Xdp.Portal()
+    # ------------------------------------------------------------------
+    # Thread-safe signal emission
+    # ------------------------------------------------------------------
 
-    def capture(self, lang: str, copy: bool = False) -> None:
+    def _emit_on_main(self, signal: str, *args) -> None:
+        def _do():
+            self.emit(signal, *args)
+            return False
+        GLib.idle_add(_do)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def capture(
+        self,
+        lang: str,
+        copy: bool = False,
+        engine: str = "tesseract",
+        delete_after: bool = True,
+    ) -> None:
         """
-        Captures screenshot using gnome-screenshot, extract text from it and returns it.
+        Open the interactive XDG screenshot selector and extract text
+        from the region the user selects.
 
-        If image contains QR code, it will be decoded and returned.
-        Otherwise, it will be treated as image with text and processed
-        by pytesseract and returned.
-
-        If image is not recognized, returns None.
+        Parameters
+        ----------
+        lang:
+            Tesseract language code(s), e.g. ``"eng"`` or ``"eng+fra"``.
+        copy:
+            When *True* the caller wants the result written to the
+            clipboard in addition to being emitted via ``text-ready``.
+        engine:
+            OCR engine key, e.g. ``"tesseract"`` or ``"easyocr"``.
+        delete_after:
+            When *True* the screenshot file is deleted once processed.
         """
-        self.portal.take_screenshot(
+        cancellable = Gio.Cancellable.new()
+        self._portal.take_screenshot(
             None,
             Xdp.ScreenshotFlags.INTERACTIVE,
-            self.cancelable,
-            self.take_screenshot_finish,
-            [lang, copy],
+            cancellable,
+            self._on_screenshot_taken,
+            (lang, copy, engine, delete_after),
         )
 
-    def take_screenshot_finish(self, source_object, res: Gio.Task, user_data):
-        if res.had_error():
-            return self.emit("error", _("Can't take a screenshot."))
+    def decode_image(
+        self,
+        lang: str,
+        source: Union[str, BytesIO],
+        copy: bool = False,
+        remove_source: bool = False,
+        engine: str = "tesseract",
+    ) -> None:
+        """
+        Extract text or decode a QR code from an existing image.
 
-        lang, copy = user_data
+        Safe to call from any thread; the work itself happens here, so
+        callers should invoke this via :class:`GObjectWorker`.
 
-        filename = self.portal.take_screenshot_finish(res)
-        # Remove file:// from the path
-        filename = filename[7:]
-        filename = GLib.Uri.unescape_string(filename)
-        self.decode_image(lang, filename, copy, True)
-
-    def decode_image(self,
-                     lang: str,
-                     file: str | Image.Image,
-                     copy: bool = False,
-                     remove_source: bool = False,
-                     ) -> None:
-        # Check if `file` is a filepath and mark it for deletion
-        if not isinstance(file, str) or not os.path.exists(file):
+        Parameters
+        ----------
+        lang:
+            Tesseract language code(s).
+        source:
+            Either a file-system path (``str``) or an in-memory
+            ``BytesIO`` buffer containing image data.
+        copy:
+            Passed through to the ``text-ready`` signal.
+        remove_source:
+            When *True* and *source* is a file path, the file is
+            deleted after processing.  Ignored for ``BytesIO`` sources.
+        engine:
+            OCR engine key.
+        """
+        if not isinstance(source, str):
             remove_source = False
-            logger.debug('Remove source set to False')
 
-        logger.debug(f"Decoding with {lang} language.")
-        extracted = None
+        logger.debug(f"Decoding image — lang={lang}, engine={engine}")
+
         try:
-            # Try to find a QR code in the image
-            data = decode(Image.open(file))
-            if len(data) > 0:
-                extracted = data[0].data.decode("utf-8")
-
-            # If no QR code found, try to recognize text
-            else:
-                # We cannot pass the same image object from above, since
-                # pyzbar.decode runs Image.load() internally, as does
-                # pytesseract.image_to_string(). However, a second load() will
-                # close the file leading to seek errors on NoneType:
-                # > If the file associated with the image was opened by Pillow,
-                # > then this method will close it.
-                # https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.load
-                text = pytesseract.image_to_string(
-                    Image.open(file), lang=lang, config=tessdata_config
-                )
-                extracted = text.strip()
-
-        except Exception as e:
-            logger.debug("ERROR: ", e)
-            self.emit("error", "Failed to decode data.")
-
+            text = self._extract(source, lang, engine)
+        except Exception as exc:
+            logger.debug(f"Extraction error: {exc}")
+            self._emit_on_main("error", _("Failed to process image."))
+            return
         finally:
-            if remove_source:
-                try:
-                    logger.debug(f"Removing {file}")
-                    os.unlink(file)
-                except Exception as e:
-                        logger.debug(f"Error deleting {file}: {e}")
+            if remove_source and isinstance(source, str):
+                self._delete_file(source)
 
-        if extracted:
-            logger.debug("Extracted successfully")
-            self.emit("decoded", extracted, copy)
-
+        if text:
+            logger.debug("Extraction successful")
+            self._emit_on_main("text-ready", text, copy)
         else:
-            self.emit("error", "No text found.")
+            self._emit_on_main(
+                "error", _("No text found. Try grabbing another region.")
+            )
 
-    def capture_cancelled(self, cancellable: Gio.Cancellable) -> None:
-        pass  # User cancelled - not an error
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
+
+    def _on_screenshot_taken(
+        self, _source: GObject.GObject, result: Gio.Task, user_data: tuple
+    ) -> None:
+        """Portal callback — converts the URI and starts extraction."""
+        if result.had_error():
+            self.emit("error", _("Could not take a screenshot."))
+            return
+
+        lang, copy, engine, delete_after = user_data
+
+        try:
+            uri = self._portal.take_screenshot_finish(result)
+            path = GLib.Uri.unescape_string(uri.removeprefix("file://"))
+            # OCR can be slow — keep it off the main loop.
+            GObjectWorker.call(
+                self.decode_image,
+                (lang, path, copy, delete_after, engine),
+            )
+        except Exception as exc:
+            logger.debug(f"Screenshot finish error: {exc}")
+            self.emit("error", _("Could not take a screenshot."))
+
+    def _extract(
+        self, source: Union[str, BytesIO], lang: str, engine: str = "tesseract"
+    ) -> str | None:
+        """Try QR decoding first, then use the selected OCR engine."""
+        if hasattr(source, "seek"):
+            source.seek(0)
+        qr_results = decode_qr(Image.open(source))
+        if qr_results:
+            return qr_results[0].data.decode("utf-8")
+        # The QR pass consumed the stream — the engine service rewinds
+        # it again before reading.
+        return ocr_engine_service.extract(engine, source, lang)
+
+    def _delete_file(self, path: str) -> None:
+        """Silently remove a temporary screenshot file."""
+        try:
+            os.unlink(path)
+            logger.debug(f"Deleted temp file: {path}")
+        except Exception as exc:
+            logger.debug(f"Could not delete {path}: {exc}")
