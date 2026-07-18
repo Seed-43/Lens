@@ -25,31 +25,36 @@ template $LensWindow : Adw.ApplicationWindow {
 
           sidebar: Adw.ToolbarView {
 
-            [top]
-            Adw.HeaderBar {
-              show-title: false;
-            }
-
             content: Box sidebar {
               orientation: vertical;
+              styles ["lens-bg"]
 
-              Box sidebar_header {
-                orientation: vertical;
-                margin-top: 4;
-                margin-bottom: 10;
-                margin-start: 20;
-                margin-end: 20;
-                spacing: 10;
+              WindowHandle {
+                Box sidebar_header {
+                  orientation: vertical;
+                  margin-top: 20;
+                  margin-bottom: 10;
+                  margin-start: 20;
+                  margin-end: 20;
+                  spacing: 10;
 
-                Box {
-                  orientation: horizontal;
-                  spacing: 12;
+                  Box {
+                    orientation: horizontal;
+                    spacing: 12;
 
-                  Image app_icon {
-                    pixel-size: 78;
-                    valign: start;
-                    halign: center;
-                  }
+                    Box {
+                      styles ["icon-card"]
+                      valign: start;
+                      halign: center;
+
+                      Image app_icon {
+                        pixel-size: 78;
+                        margin-top: 4;
+                        margin-bottom: 4;
+                        margin-start: 4;
+                        margin-end: 4;
+                      }
+                    }
 
                   Box {
                     orientation: vertical;
@@ -96,25 +101,34 @@ template $LensWindow : Adw.ApplicationWindow {
                     }
                   }
                 }
-
-                Box tab_bar {
-                  orientation: horizontal;
-                  homogeneous: true;
-                  spacing: 4;
-
-                  styles ["linked", "tab-bar"]
-
-                  ToggleButton tab_lens {
-                    label: _("Lens");
-                    active: true;
-                  }
-
-                  ToggleButton tab_settings {
-                    label: _("Settings");
-                    group: tab_lens;
-                  }
-                }
               }
+            }
+
+            Box tab_bar {
+              orientation: horizontal;
+              homogeneous: true;
+              spacing: 4;
+              margin-start: 20;
+              margin-end: 20;
+              margin-bottom: 12;
+
+              styles ["linked", "tab-bar"]
+
+              ToggleButton tab_lens {
+                label: _("Lens");
+                active: true;
+              }
+
+              ToggleButton tab_settings {
+                label: _("Settings");
+                group: tab_lens;
+              }
+
+              ToggleButton tab_history {
+                label: _("History");
+                group: tab_lens;
+              }
+            }
 
               Separator { }
 
@@ -268,7 +282,6 @@ template $LensWindow : Adw.ApplicationWindow {
                           }
                         }
 
-                        Separator {}
 
                         Box {
                           orientation: horizontal;
@@ -291,7 +304,6 @@ template $LensWindow : Adw.ApplicationWindow {
                           }
                         }
 
-                        Separator {}
 
                         Box {
                           orientation: horizontal;
@@ -343,12 +355,11 @@ template $LensWindow : Adw.ApplicationWindow {
                             styles ["dim-label"]
                           }
 
-                          Button ocr_uninstall_btn {
-                            icon-name: "user-trash-symbolic";
-                            tooltip-text: _("Remove this engine from disk");
+                          Button ocr_action_btn {
+                            icon-name: "folder-download-symbolic";
                             visible: false;
                             valign: center;
-                            styles ["flat"]
+                            styles ["flat", "compact-icon-btn"]
                           }
 
                           DropDown ocr_engine_dropdown {
@@ -359,7 +370,6 @@ template $LensWindow : Adw.ApplicationWindow {
                           }
                         }
 
-                        Separator {}
 
                         Box {
                           orientation: horizontal;
@@ -398,12 +408,6 @@ template $LensWindow : Adw.ApplicationWindow {
                             wrap: true;
                             styles ["dim-label", "caption"]
                           }
-
-                          Button ocr_download_btn {
-                            label: _("Download");
-                            valign: center;
-                            styles ["suggested-action"]
-                          }
                         }
 
                         ProgressBar ocr_progress_bar {
@@ -421,44 +425,65 @@ template $LensWindow : Adw.ApplicationWindow {
                       }
 
                       Box {
-                        orientation: horizontal;
+                        orientation: vertical;
+                        spacing: 0;
+                        styles ["card"]
 
-                        Label {
-                          label: _("Auto copy to clipboard");
-                          xalign: 0;
-                          hexpand: true;
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label {
+                            label: _("Auto copy to clipboard");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          Switch autocopy_switch {
+                            valign: center;
+                          }
                         }
 
-                        Switch autocopy_switch {
-                          valign: center;
-                        }
-                      }
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
 
-                      Box {
-                        orientation: horizontal;
+                          Label {
+                            label: _("Open QR-code links");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
 
-                        Label {
-                          label: _("Open QR-code links");
-                          xalign: 0;
-                          hexpand: true;
-                        }
-
-                        Switch autolinks_switch {
-                          valign: center;
-                        }
-                      }
-
-                      Box {
-                        orientation: horizontal;
-
-                        Label {
-                          label: _("Auto Delete Screenshot");
-                          xalign: 0;
-                          hexpand: true;
+                          Switch autolinks_switch {
+                            valign: center;
+                          }
                         }
 
-                        Switch delete_screenshot_switch {
-                          valign: center;
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label {
+                            label: _("Auto Delete Screenshot");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          Switch delete_screenshot_switch {
+                            valign: center;
+                          }
                         }
                       }
 
@@ -472,15 +497,26 @@ template $LensWindow : Adw.ApplicationWindow {
 
                       Box {
                         orientation: vertical;
-                        spacing: 6;
+                        spacing: 0;
+                        styles ["card"]
 
                         Box {
                           orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
 
                           Label {
                             label: _("Shortcut");
                             xalign: 0;
                             hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          Button hotkey_capture_btn {
+                            valign: center;
+                            styles ["flat"]
                           }
 
                           Button hotkey_clear_btn {
@@ -489,20 +525,21 @@ template $LensWindow : Adw.ApplicationWindow {
                             valign: center;
                             styles ["flat"]
                           }
-
-                          Button hotkey_capture_btn {
-                            valign: center;
-                            styles ["flat"]
-                          }
                         }
+
 
                         Box {
                           orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
 
                           Label {
                             label: _("When pressed");
                             xalign: 0;
                             hexpand: true;
+                            styles ["dim-label"]
                           }
 
                           DropDown hotkey_mode_dropdown {
@@ -520,24 +557,75 @@ template $LensWindow : Adw.ApplicationWindow {
                       }
 
                       Box {
-                        orientation: horizontal;
+                        orientation: vertical;
+                        spacing: 0;
+                        styles ["card"]
 
-                        Label {
-                          label: _("Keep history for (days)");
-                          xalign: 0;
-                          hexpand: true;
-                        }
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
 
-                        SpinButton history_days_spin {
-                          valign: center;
-                          numeric: true;
-                          adjustment: Adjustment {
-                            lower: 1;
-                            upper: 365;
-                            step-increment: 1;
-                            value: 30;
-                          };
+                          Label {
+                            label: _("Keep history for (days)");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          SpinButton history_days_spin {
+                            valign: center;
+                            numeric: true;
+                            adjustment: Adjustment {
+                              lower: 1;
+                              upper: 365;
+                              step-increment: 1;
+                              value: 30;
+                            };
+                          }
                         }
+                      }
+                    }
+                  };
+                }
+
+                StackPage {
+                  name: "history";
+                  child: Box {
+                    orientation: vertical;
+                    margin-top: 12;
+                    margin-bottom: 12;
+                    margin-start: 20;
+                    margin-end: 20;
+                    spacing: 6;
+
+                    Box {
+                      orientation: horizontal;
+
+                      Label {
+                        label: _("History");
+                        xalign: 0;
+                        hexpand: true;
+                        styles ["heading", "dim-label"]
+                      }
+
+                      Button history_clear_all_btn {
+                        icon-name: "user-trash-symbolic";
+                        tooltip-text: _("Delete all history");
+                        styles ["flat", "destructive-action"]
+                      }
+                    }
+
+                    ScrolledWindow {
+                      vexpand: true;
+                      hscrollbar-policy: never;
+                      styles ["history-list-bg"]
+
+                      ListBox history_list {
+                        selection-mode: single;
+                        styles ["history-list-bg"]
                       }
                     }
                   };
@@ -547,9 +635,12 @@ template $LensWindow : Adw.ApplicationWindow {
           };
 
           content: Adw.ToolbarView {
+            styles ["content-view-bg"]
 
             [top]
             Adw.HeaderBar {
+              styles ["flat-headerbar"]
+
               [title]
               Label { }
 
@@ -578,6 +669,7 @@ template $LensWindow : Adw.ApplicationWindow {
             content: Overlay content_overlay {
               vexpand: true;
               hexpand: true;
+              styles ["content-view-bg"]
 
               Stack content_stack {
                 vexpand: true;
@@ -613,78 +705,7 @@ template $LensWindow : Adw.ApplicationWindow {
                 }
               }
 
-              [overlay]
-              Button history_edge_btn {
-                halign: end;
-                valign: center;
-                styles ["history-edge-btn"]
-                child: Image {
-                  icon-name: "list-drag-handle-symbolic";
-                  pixel-size: 12;
-                };
-              }
 
-              [overlay]
-              Box history_panel {
-                orientation: horizontal;
-                halign: end;
-                valign: fill;
-                visible: false;
-
-                Button history_resize_handle {
-                  valign: center;
-                  styles ["history-resize-handle"]
-                  child: Image {
-                    icon-name: "list-drag-handle-symbolic";
-                    pixel-size: 12;
-                  };
-                }
-
-                Box history_inner {
-                  orientation: vertical;
-                  width-request: 200;
-                  styles ["history-panel-box"]
-
-                  Box {
-                    orientation: horizontal;
-                    margin-top: 6;
-                    margin-bottom: 6;
-                    margin-start: 4;
-                    margin-end: 8;
-
-                    Button history_close_btn {
-                      icon-name: "go-next-symbolic";
-                      tooltip-text: _("Close history");
-                      styles ["flat"]
-                    }
-
-                    Label {
-                      label: _("History");
-                      xalign: 0;
-                      hexpand: true;
-                      styles ["heading"]
-                    }
-
-                    Button history_clear_all_btn {
-                      icon-name: "user-trash-symbolic";
-                      tooltip-text: _("Delete all history");
-                      styles ["flat", "destructive-action"]
-                    }
-                  }
-
-                  Separator { }
-
-                  ScrolledWindow {
-                    vexpand: true;
-                    hscrollbar-policy: never;
-
-                    ListBox history_list {
-                      selection-mode: single;
-                      styles ["separators"]
-                    }
-                  }
-                }
-              }
             };
           };
         }

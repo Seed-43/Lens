@@ -7,9 +7,11 @@
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
+import re
 import subprocess
+from gettext import gettext as _
 
-from gi.repository import GObject
+from gi.repository import GObject, Gtk
 from loguru import logger
 
 LENS_BINDING_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/lens-hotkey/"
@@ -80,6 +82,39 @@ class HotkeyService(GObject.GObject):
         if result and "-e" in result:
             return "silent"
         return "show"
+
+    def find_conflict(self, shortcut: str) -> str | None:
+        """
+        Check whether *shortcut* is already claimed by another GNOME
+        custom keybinding, and if so, return that binding's name.
+
+        This only checks other custom keybindings — apps and scripts
+        that registered a shortcut the same way Lens does. It can't see
+        built-in GNOME/window-manager shortcuts (workspace switching,
+        window snapping, the default screenshot tool, etc.), those live
+        in a different schema entirely and aren't practical to enumerate
+        reliably here. A clean result from this check is a good sign,
+        not a guarantee the combination is free.
+        """
+        ok, keyval, mods = Gtk.accelerator_parse(shortcut)
+        if not ok:
+            return None
+
+        current = _media_get("custom-keybindings") or "@as []"
+        for path in re.findall(r"'([^']+)'", current):
+            if path == LENS_BINDING_PATH:
+                continue
+            binding = _run(["gsettings", "get", f"{CUSTOM_SCHEMA}:{path}", "binding"])
+            if not binding:
+                continue
+            other_binding = binding.strip("'\"")
+            if not other_binding:
+                continue
+            other_ok, other_keyval, other_mods = Gtk.accelerator_parse(other_binding)
+            if other_ok and other_keyval == keyval and other_mods == mods:
+                name = _run(["gsettings", "get", f"{CUSTOM_SCHEMA}:{path}", "name"])
+                return (name or "").strip("'\"") or _("another shortcut")
+        return None
 
     def set_shortcut(self, shortcut: str, mode: str = "silent") -> bool:
         try:

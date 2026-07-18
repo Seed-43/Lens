@@ -498,16 +498,42 @@ class OcrEngineService(GObject.GObject):
         recognizes shapes, not scripts — so it works best on clean,
         printed Latin-script text and the *lang* setting doesn't apply.
 
+        Ocrad's own manual recommends characters be at least 20 pixels
+        tall for reliable recognition. Screen-captured text is usually
+        well under that (often 12-16px), so the image is upscaled 3x
+        before recognition — without this, ocrad silently finds nothing
+        on most ordinary screenshots.
+
+        Ocrad also assumes normal polarity — dark text on a light
+        background, like a scanned page. Light text on a dark
+        background (dark-mode UI, terminals, etc.) reads as a solid
+        block to it and produces nothing. The image's average
+        brightness is checked and inverted automatically when it looks
+        like light-on-dark, so both polarities work without the user
+        needing to know or care which one they're capturing.
+
         Returns ``(text, errored)``, matching ``_extract_via_venv``.
         """
-        from PIL import Image
+        from PIL import Image, ImageOps
+        from PIL.ImageStat import Stat
 
         self._rewind(source)
         tmp_path = None
         try:
             with tempfile.NamedTemporaryFile(suffix=".pgm", delete=False) as f:
                 tmp_path = f.name
-            Image.open(source).convert("L").save(tmp_path)
+            img = Image.open(source).convert("L")
+
+            # Light text on a dark background reads darker on average
+            # than dark text on a light background — flip it so ocrad
+            # always sees dark-on-light, regardless of source polarity.
+            if Stat(img).mean[0] < 128:
+                img = ImageOps.invert(img)
+
+            img = img.resize(
+                (img.width * 3, img.height * 3), Image.Resampling.LANCZOS
+            )
+            img.save(tmp_path)
 
             result = self._run(
                 ["ocrad", "--format=utf8", tmp_path], timeout=30

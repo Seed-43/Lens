@@ -23,7 +23,7 @@ from urllib.parse import urlparse
 from gi.repository import Adw, Gdk, GLib, Gio, Gtk
 from loguru import logger
 
-from lens.config import APP_ID, RESOURCE_PREFIX
+from lens.config import RESOURCE_PREFIX
 from lens.gobject_worker import GObjectWorker
 from lens.language_manager import language_manager
 from lens.services.clipboard_service import ClipboardService, clipboard_service
@@ -56,6 +56,7 @@ class LensWindow(Adw.ApplicationWindow):
     version_label:            Gtk.Label           = Gtk.Template.Child()
     tab_lens:                 Gtk.ToggleButton    = Gtk.Template.Child()
     tab_settings:             Gtk.ToggleButton    = Gtk.Template.Child()
+    tab_history:              Gtk.ToggleButton    = Gtk.Template.Child()
     sidebar_stack:            Gtk.Stack           = Gtk.Template.Child()
     spinner:                  Adw.Spinner         = Gtk.Template.Child()
     extract_status_label:     Gtk.Label           = Gtk.Template.Child()
@@ -81,8 +82,7 @@ class LensWindow(Adw.ApplicationWindow):
     ocr_engine_description_label: Gtk.Label       = Gtk.Template.Child()
     ocr_download_box:         Gtk.Box             = Gtk.Template.Child()
     ocr_status_label:         Gtk.Label           = Gtk.Template.Child()
-    ocr_download_btn:         Gtk.Button          = Gtk.Template.Child()
-    ocr_uninstall_btn:        Gtk.Button          = Gtk.Template.Child()
+    ocr_action_btn:           Gtk.Button          = Gtk.Template.Child()
     ocr_progress_bar:         Gtk.ProgressBar     = Gtk.Template.Child()
 
     # Content area
@@ -93,14 +93,9 @@ class LensWindow(Adw.ApplicationWindow):
     buffer:                   Gtk.TextBuffer      = Gtk.Template.Child()
 
     # History panel
-    history_panel:            Gtk.Box             = Gtk.Template.Child()
-    history_inner:            Gtk.Box             = Gtk.Template.Child()
-    history_resize_handle:    Gtk.Button          = Gtk.Template.Child()
     history_list:             Gtk.ListBox         = Gtk.Template.Child()
     history_open_btn:         Gtk.Button          = Gtk.Template.Child()
-    history_close_btn:        Gtk.Button          = Gtk.Template.Child()
     history_clear_all_btn:    Gtk.Button          = Gtk.Template.Child()
-    history_edge_btn:         Gtk.Button          = Gtk.Template.Child()
 
     # ------------------------------------------------------------------ #
     # Initialisation                                                       #
@@ -123,9 +118,12 @@ class LensWindow(Adw.ApplicationWindow):
         self._init_clipboard()
         self._init_drag_and_drop()
         self._init_window_size()
+        self._was_visible_before_capture = True
+        self._capture_timeout_id = 0
 
         self.tab_lens.connect("toggled", self._on_tab_toggled)
         self.tab_settings.connect("toggled", self._on_tab_toggled)
+        self.tab_history.connect("toggled", self._on_tab_toggled)
 
         self.content_stack.set_visible_child_name("empty")
 
@@ -133,7 +131,7 @@ class LensWindow(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(3, self._check_engine_updates)
 
     def _init_header(self, version: str | None) -> None:
-        self.app_icon.set_from_resource(f"{RESOURCE_PREFIX}/icons/{APP_ID}.svg")
+        self.app_icon.set_from_resource(f"{RESOURCE_PREFIX}/icons/icon.svg")
         if version:
             self.version_label.set_label(version)
 
@@ -184,7 +182,12 @@ class LensWindow(Adw.ApplicationWindow):
     # ------------------------------------------------------------------ #
 
     def _on_tab_toggled(self, _btn: Gtk.ToggleButton) -> None:
-        name = "lens" if self.tab_lens.get_active() else "settings"
+        if self.tab_lens.get_active():
+            name = "lens"
+        elif self.tab_settings.get_active():
+            name = "settings"
+        else:
+            name = "history"
         self.sidebar_stack.set_visible_child_name(name)
 
     # ------------------------------------------------------------------ #
@@ -235,17 +238,56 @@ class LensWindow(Adw.ApplicationWindow):
     def _stop_extracting(self) -> None:
         self.spinner.set_visible(False)
         self.extract_status_label.set_visible(False)
+        if getattr(self, "_capture_timeout_id", 0):
+            GLib.source_remove(self._capture_timeout_id)
+            self._capture_timeout_id = 0
+        # Undo the minimize() from get_screenshot() — but only if we're
+        # the ones who hid it. Leaves the silent global-hotkey path
+        # (which never shows the window) untouched, and is a harmless
+        # no-op for paths that never hid it (open file, paste, drag-drop).
+        # Note: GNOME's Wayland focus-stealing prevention means this may
+        # surface as a "Lens is ready" notification rather than actually
+        # raising the window — click it to bring Lens forward.
+        if getattr(self, "_was_visible_before_capture", True):
+            self.present()
 
     def get_screenshot(self, copy: bool = False) -> None:
         """Trigger the interactive screenshot selector and extract text."""
         engine = self._current_engine()
         self._start_extracting(engine)
+        # Only hide/restore if the window was already on screen — the
+        # silent global-hotkey path never presents the window at all,
+        # and should stay that way.
+        self._was_visible_before_capture = self.get_visible()
+        if self._was_visible_before_capture:
+            self.minimize()
+            # minimize() under Wayland just requests the compositor hide
+            # the window — it isn't instant. Firing the screenshot portal
+            # immediately after was racing that, so the window was often
+            # still visible during capture. Give it a moment first.
+            GLib.timeout_add(200, self._start_capture, engine, copy)
+        else:
+            self._start_capture(engine, copy)
+
+    def _start_capture(self, engine: str, copy: bool) -> bool:
         self.backend.capture(
             self._get_lang(),
             copy,
             engine,
             self.settings.get_boolean("delete-screenshot"),
         )
+        # Safety net: if the portal's screenshot picker gets cancelled
+        # (Escape, clicking away) some compositors never call back at
+        # all, which would otherwise leave the window stuck minimized
+        # forever with nothing to trigger present() again.
+        self._capture_timeout_id = GLib.timeout_add_seconds(60, self._on_capture_timeout)
+        return False  # one-shot timeout, don't repeat
+
+    def _on_capture_timeout(self) -> bool:
+        logger.debug("Screenshot capture timed out — restoring window")
+        self._capture_timeout_id = 0
+        self._stop_extracting()
+        return False
 
     def _on_text_ready(self, _sender, text: str, copy: bool) -> None:
         """Handle successfully extracted text."""
@@ -402,10 +444,10 @@ class LensWindow(Adw.ApplicationWindow):
         self._downloading_engine: str | None = None
         self._pending_updates: dict[str, str] = {}
         self._banner_engine: str | None = None
+        self._current_engine_installed = False
         self.ocr_engine_dropdown.set_tooltip_text(descriptions[idx])
         self.ocr_engine_description_label.set_label(descriptions[idx])
-        self.ocr_download_btn.connect("clicked",  self._on_ocr_download)
-        self.ocr_uninstall_btn.connect("clicked", self._on_ocr_uninstall)
+        self.ocr_action_btn.connect("clicked", self._on_ocr_action_clicked)
         self.engine_update_banner.connect("button-clicked", self._on_engine_update_clicked)
         ocr_engine_service.connect("download-progress", self._on_ocr_download_progress)
         ocr_engine_service.connect("download-done",     self._on_ocr_download_done)
@@ -425,7 +467,7 @@ class LensWindow(Adw.ApplicationWindow):
 
     def _update_ocr_status(self) -> None:
         """
-        Refresh the download/uninstall row for the selected engine.
+        Refresh the action button and download row for the selected engine.
 
         The installed check talks to the host over D-Bus, so it runs on
         a worker thread and the result is applied back on the main loop.
@@ -433,7 +475,7 @@ class LensWindow(Adw.ApplicationWindow):
         if self._ocr_downloading:
             return
         engine = self._current_engine()
-        self.ocr_uninstall_btn.set_visible(False)
+        self.ocr_action_btn.set_visible(False)
         GObjectWorker.call(
             ocr_engine_service.is_installed,
             (engine,),
@@ -445,30 +487,47 @@ class LensWindow(Adw.ApplicationWindow):
         if engine != self._current_engine() or self._ocr_downloading:
             return
         logger.debug(f"OCR engine: {engine}, installed: {installed}")
-        if installed:
+        self._current_engine_installed = installed
+
+        if engine in BUILTIN_ENGINES:
+            self.ocr_action_btn.set_visible(False)
             self.ocr_download_box.set_visible(False)
-            self.ocr_uninstall_btn.set_visible(engine not in BUILTIN_ENGINES)
+            return
+
+        if installed:
+            self.ocr_action_btn.set_visible(True)
+            self.ocr_action_btn.set_icon_name("user-trash-symbolic")
+            self.ocr_action_btn.set_tooltip_text(_("Remove this engine from disk"))
+            self.ocr_download_box.set_visible(False)
         else:
             label = ENGINES[engine]["label"]
+            self.ocr_action_btn.set_visible(True)
+            self.ocr_action_btn.set_icon_name("folder-download-symbolic")
+            self.ocr_action_btn.set_tooltip_text(_("Download {}").format(label))
             self.ocr_status_label.set_label(_("{} is not installed.").format(label))
             self.ocr_download_box.set_visible(True)
-            self.ocr_download_btn.set_sensitive(True)
-            self.ocr_download_btn.set_label(_("Download"))
             self.ocr_progress_bar.set_visible(False)
+
+    def _on_ocr_action_clicked(self, _btn) -> None:
+        if self._current_engine_installed:
+            self._on_ocr_uninstall(_btn)
+        else:
+            self._on_ocr_download(_btn)
 
     def _on_ocr_download(self, _btn) -> None:
         self._begin_engine_download(self._current_engine())
 
     def _begin_engine_download(self, engine: str) -> None:
         """Kick off an install/upgrade for *engine* (used by both the
-        Settings page button and the update banner)."""
+        Settings page action button and the update banner)."""
         logger.debug(f"Starting download of engine: {engine}")
         self._downloading_engine = engine
         if engine == self._current_engine():
             self._ocr_downloading = True
-            self.ocr_download_btn.set_sensitive(False)
-            self.ocr_download_btn.set_label(_("Downloading…"))
+            self.ocr_action_btn.set_sensitive(False)
             self.ocr_engine_dropdown.set_sensitive(False)
+            self.ocr_download_box.set_visible(True)
+            self.ocr_status_label.set_label(_("Starting download…"))
             self.ocr_progress_bar.set_visible(True)
             self._ocr_pulse_id = GLib.timeout_add(120, self._ocr_pulse)
         ocr_engine_service.install(engine)
@@ -494,13 +553,10 @@ class LensWindow(Adw.ApplicationWindow):
         if engine == self._current_engine():
             self._ocr_downloading = False
             self._stop_ocr_pulse()
+            self.ocr_action_btn.set_sensitive(True)
             self.ocr_engine_dropdown.set_sensitive(True)
-            if success:
-                self.ocr_download_box.set_visible(False)
-            else:
+            if not success:
                 self.ocr_status_label.set_label(_("Download failed. Check your connection."))
-                self.ocr_download_btn.set_sensitive(True)
-                self.ocr_download_btn.set_label(_("Retry"))
             self._update_ocr_status()
 
         if engine:
@@ -569,11 +625,11 @@ class LensWindow(Adw.ApplicationWindow):
     def _on_ocr_uninstall_response(self, _dialog, response: str, engine: str) -> None:
         if response != "remove":
             return
-        self.ocr_uninstall_btn.set_sensitive(False)
+        self.ocr_action_btn.set_sensitive(False)
         ocr_engine_service.uninstall(engine)
 
     def _on_ocr_uninstall_done(self, _svc, success: bool) -> None:
-        self.ocr_uninstall_btn.set_sensitive(True)
+        self.ocr_action_btn.set_sensitive(True)
         self.show_toast(
             _("OCR engine removed") if success else _("Could not remove engine")
         )
@@ -593,49 +649,19 @@ class LensWindow(Adw.ApplicationWindow):
         self.history_days_spin.connect("value-changed", self._on_history_days_changed)
         history_service.purge_old(days)
 
-        self.history_panel.add_css_class("history-panel-box")
-        self.history_open_btn.connect("clicked",  self._on_history_toggle)
-        self.history_close_btn.connect("clicked", self._on_history_toggle)
-        self.history_edge_btn.connect("clicked",   self._on_history_toggle)
-        self.history_resize_handle.connect("clicked", self._on_history_toggle)
+        self.history_open_btn.connect("clicked", self._on_history_open_clicked)
         self.history_clear_all_btn.connect("clicked", self._on_history_clear_all)
-
-        self._history_dragging   = False
-        self._drag_start_width   = 200
-        drag = Gtk.GestureDrag()
-        drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        drag.connect("drag-begin",  self._on_history_drag_begin)
-        drag.connect("drag-update", self._on_history_drag_update)
-        drag.connect("drag-end",    self._on_history_drag_end)
-        self.history_resize_handle.add_controller(drag)
 
         self._refresh_history()
 
-    def _on_history_toggle(self, _btn) -> None:
-        visible = not self.history_panel.get_visible()
-        self.history_panel.set_visible(visible)
-        self.history_edge_btn.set_visible(not visible)
+    def _on_history_open_clicked(self, _btn) -> None:
+        self.tab_history.set_active(True)
 
     def _on_history_days_changed(self, spin: Gtk.SpinButton) -> None:
         days = int(spin.get_value())
         self.settings.set_int("history-days", days)
         self.settings.sync()
         history_service.purge_old(days)
-
-    def _on_history_drag_begin(self, _gesture, _x, _y) -> None:
-        self._history_dragging  = True
-        self._drag_start_width  = self.history_panel.get_allocated_width()
-
-    def _on_history_drag_update(self, _gesture, offset_x: float, _offset_y: float) -> None:
-        if not self._history_dragging:
-            return
-        max_w    = self.content_overlay.get_allocated_width() - 20
-        new_w    = max(160, min(int(self._drag_start_width - offset_x), max_w))
-        self.history_inner.set_size_request(new_w, -1)
-        self.history_panel.queue_resize()
-
-    def _on_history_drag_end(self, _gesture, _ox, _oy) -> None:
-        self._history_dragging = False
 
     def _refresh_history(self) -> None:
         # Disconnect old row-selected signal to avoid duplicates
@@ -656,6 +682,10 @@ class LensWindow(Adw.ApplicationWindow):
         row          = Gtk.ListBoxRow()
         row.entry_id = entry.id
         row.entry_text = entry.text
+        # The row itself is the visual card — one widget, one
+        # background — rather than a child box with the row's own
+        # default background potentially showing through around it.
+        row.add_css_class("history-entry-card")
 
         box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         box.set_margin_top(8)
@@ -693,7 +723,6 @@ class LensWindow(Adw.ApplicationWindow):
         if row:
             self.buffer.set_text(row.entry_text)
             self.content_stack.set_visible_child_name("text")
-            self.tab_lens.set_active(True)
 
     def _on_history_delete(self, _btn, entry_id: str) -> None:
         history_service.delete(entry_id)
@@ -743,7 +772,8 @@ class LensWindow(Adw.ApplicationWindow):
     def _apply_hotkey_status(self, result: tuple[str | None, str]) -> None:
         shortcut, mode = result
         if shortcut:
-            label = Gtk.accelerator_get_label(*Gtk.accelerator_parse(shortcut))
+            ok, keyval, mods = Gtk.accelerator_parse(shortcut)
+            label = Gtk.accelerator_get_label(keyval, mods) if ok else shortcut
             self.hotkey_capture_btn.set_label(label)
             self.hotkey_clear_btn.set_sensitive(True)
             self.hotkey_mode_dropdown.set_sensitive(True)
@@ -798,13 +828,45 @@ class LensWindow(Adw.ApplicationWindow):
         binding = Gtk.accelerator_name(keyval, mods)
         self._stop_hotkey_capture()
 
+        self.hotkey_capture_btn.set_label(_("Checking…"))
+        GObjectWorker.call(
+            lambda: hotkey_service.find_conflict(binding),
+            callback=lambda conflict: self._on_hotkey_conflict_checked(binding, conflict),
+        )
+        return True
+
+    def _on_hotkey_conflict_checked(self, binding: str, conflict: str | None) -> None:
+        if conflict:
+            ok, keyval, mods = Gtk.accelerator_parse(binding)
+            display = Gtk.accelerator_get_label(keyval, mods) if ok else binding
+            dialog = Adw.AlertDialog(
+                heading=_("Shortcut Already in Use"),
+                body=_(
+                    "{shortcut} is already used by “{other}”. Setting it here "
+                    "may stop that shortcut from working."
+                ).format(shortcut=display, other=conflict),
+            )
+            dialog.add_response("cancel", _("Cancel"))
+            dialog.add_response("use", _("Use Anyway"))
+            dialog.set_response_appearance("use", Adw.ResponseAppearance.DESTRUCTIVE)
+            dialog.connect("response", self._on_hotkey_conflict_response, binding)
+            dialog.present(self)
+        else:
+            self._save_hotkey(binding)
+
+    def _on_hotkey_conflict_response(self, _dialog, response: str, binding: str) -> None:
+        if response == "use":
+            self._save_hotkey(binding)
+        else:
+            self._refresh_hotkey_status()
+
+    def _save_hotkey(self, binding: str) -> None:
         mode = "silent" if self.hotkey_mode_dropdown.get_selected() == 1 else "show"
         self.hotkey_capture_btn.set_label(_("Saving…"))
         GObjectWorker.call(
             lambda: hotkey_service.set_shortcut(binding, mode),
             callback=lambda ok: self._on_hotkey_set_done(ok, binding),
         )
-        return True
 
     def _on_hotkey_set_done(self, ok: bool, binding: str) -> None:
         if ok:

@@ -2,10 +2,10 @@ using Gtk 4.0;
 
 template $LanguageRow : Overlay {
   Box {
-    margin-bottom: 4;
+    margin-bottom: 3;
     margin-end: 12;
     margin-start: 12;
-    margin-top: 4;
+    margin-top: 3;
     spacing: 6;
 
     Label label {
@@ -23,7 +23,7 @@ template $LanguageRow : Overlay {
       clicked => $_on_download();
       valign: center;
 
-      styles ["flat", "circular", "compact-icon-btn"]
+      styles ["flat", "compact-icon-btn"]
     }
 
     Button remove_btn {

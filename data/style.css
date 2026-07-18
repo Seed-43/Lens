@@ -1,7 +1,7 @@
 
 .downloaded label {
     font-weight: bold;
-    color: #3584e4;
+    color: @accent_bg_color;
 }
 
 /* #lang_list row { */
@@ -29,9 +29,15 @@
    without this they render at GTK's default button size and look
    like separate pill buttons rather than list-row affordances. */
 .compact-icon-btn {
-  min-width: 24px;
-  min-height: 24px;
-  padding: 4px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 2px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+.compact-icon-btn:hover {
+  background: alpha(currentColor, 0.08);
 }
 /* Lang Selector */
 .search_box {
@@ -91,105 +97,74 @@ row:hover .history-del-btn:hover {
   color: @destructive_color;
 }
 
-/* History overlay panel - match the sidebar colour */
-.history-panel-box {
-  background: var(--sidebar-bg-color);
+/* The whole content pane — both the empty state and the text view —
+   uses the sunken "view" tone, the darkest surface in the window,
+   consistently across both states rather than relying on whichever
+   default each individual child widget happens to have. */
+.content-view-bg,
+.content-view-bg:backdrop {
+  background: @view_bg_color;
 }
 
-/* History toggle button - three dots on right edge */
-.history-toggle-btn {
-  padding: 0;
-  min-width: 24px;
-  min-height: 48px;
-  border-radius: 8px 0 0 8px;
-  border: 0.5px solid @borders;
-  border-right: none;
-  background: @window_bg_color;
-  margin-right: 0;
+/* Sidebar body — uses libadwaita's actual sidebar tone, matching how
+   Nautilus and other split-view apps color their sidebar pane. */
+.lens-bg,
+.lens-bg:backdrop {
+  background: @sidebar_bg_color;
 }
 
-.history-toggle-btn:hover {
-  background: @headerbar_backdrop_color;
-}
-
-/* Resize handle */
-
-
-/* History close tab on left edge */
-.history-close-tab {
-  padding: 0;
-  min-width: 20px;
-  min-height: 48px;
-  border-radius: 8px 0 0 8px;
-  border: 0.5px solid alpha(@borders, 0.6);
-  border-right: none;
-  background: @window_bg_color;
-}
-
-.history-close-tab:hover {
-  background: @headerbar_backdrop_color;
-}
-
-.history-dot {
-  border-radius: 50%;
-  background: @headerbar_fg_color;
-  opacity: 0.6;
-}
-
-/* History edge button - shown when panel is closed */
-.history-edge-btn {
-  padding: 4px 2px;
-  min-width: 14px;
-  min-height: 48px;
-  border-radius: 6px 0 0 6px;
-  border: 0.5px solid alpha(@borders, 0.5);
-  border-right: none;
+/* Icon card behind the app logo — accent-colored rather than the
+   generic Settings card tone, to stand out as a small brand touch. */
+.icon-card {
   background: @accent_bg_color;
-  color: @accent_fg_color;
-  margin: 0;
-  box-shadow: none;
+  border-radius: 16px;
 }
 
-.history-edge-btn:hover,
-.history-edge-btn:active,
-.history-edge-btn:focus {
-  background: @accent_bg_color;
-  color: @accent_fg_color;
-  box-shadow: none;
+/* GtkListBox paints its own background by default, sitting on top of
+   the sidebar's own background in the gaps between cards. Strip it so
+   the sidebar's background actually shows through there. */
+.history-list-bg,
+.history-list-bg:backdrop {
+  background: @sidebar_bg_color;
+  background-image: none;
 }
 
-/* Resize handle - invisible, only the pill image shows */
-.history-resize-handle {
-  padding: 0;
-  min-width: 0;
-  min-height: 0;
-  border: none;
-  outline: none;
-  box-shadow: none;
-  background: transparent;
-  margin: 0;
-  margin-left: -7px;
-}
-
-.history-resize-handle:hover,
-.history-resize-handle:active,
-.history-resize-handle:focus {
-  background: transparent;
+/* History entry cards — same tone as the Settings cards (the real
+   libadwaita card color), so History reads as the same kind of
+   surface as everywhere else in the app. The ListBoxRow itself is the
+   card (one widget, one background) rather than a separate child box,
+   and every interaction state is covered explicitly so GTK's own row
+   styling can't show through around the edges or during
+   hover/selection. */
+row.history-entry-card,
+row.history-entry-card:hover,
+row.history-entry-card:selected,
+row.history-entry-card:focus,
+row.history-entry-card:active,
+row.history-entry-card:backdrop,
+row.history-entry-card:backdrop:hover,
+row.history-entry-card:backdrop:selected {
+  background: @card_bg_color;
+  background-image: none;
   box-shadow: none;
   outline: none;
-}
-
-/* Solid pill */
-.history-resize-handle image {
-  min-width: 14px;
-  min-height: 48px;
-  border-radius: 6px 0 0 6px;
   border: none;
-  background: @accent_bg_color;
-  padding: 4px 2px;
+  border-radius: 10px;
+  padding: 0;
+  margin-top: 3px;
+  margin-bottom: 3px;
+  margin-left: 6px;
+  margin-right: 6px;
 }
 
-.history-resize-handle:hover image,
-.history-resize-handle:active image {
-  background: @accent_bg_color;
+/* Sidebar and content header bars — use the sunken "view" tone,
+   matching the main content pane, so the top edge of the window reads
+   as one consistent bar. */
+.flat-headerbar,
+.flat-headerbar:backdrop {
+  background: @view_bg_color !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  filter: none !important;
 }
