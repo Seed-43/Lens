@@ -74,6 +74,7 @@ class LensWindow(Adw.ApplicationWindow):
     autocopy_switch:          Gtk.Switch          = Gtk.Template.Child()
     autolinks_switch:         Gtk.Switch          = Gtk.Template.Child()
     delete_screenshot_switch: Gtk.Switch          = Gtk.Template.Child()
+    hide_during_capture_switch: Gtk.Switch        = Gtk.Template.Child()
     history_days_spin:        Gtk.SpinButton      = Gtk.Template.Child()
     hotkey_capture_btn:       Gtk.Button          = Gtk.Template.Child()
     hotkey_mode_dropdown:     Gtk.DropDown        = Gtk.Template.Child()
@@ -154,6 +155,7 @@ class LensWindow(Adw.ApplicationWindow):
         self.settings.bind("autocopy",  self.autocopy_switch,  "active", Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind("autolinks", self.autolinks_switch, "active", Gio.SettingsBindFlags.DEFAULT)
         self.settings.bind("delete-screenshot", self.delete_screenshot_switch, "active", Gio.SettingsBindFlags.DEFAULT)
+        self.settings.bind("hide-during-capture", self.hide_during_capture_switch, "active", Gio.SettingsBindFlags.DEFAULT)
 
     def _init_screenshot_backend(self) -> None:
         self.backend = ScreenshotService()
@@ -255,10 +257,12 @@ class LensWindow(Adw.ApplicationWindow):
         """Trigger the interactive screenshot selector and extract text."""
         engine = self._current_engine()
         self._start_extracting(engine)
-        # Only hide/restore if the window was already on screen — the
-        # silent global-hotkey path never presents the window at all,
-        # and should stay that way.
-        self._was_visible_before_capture = self.get_visible()
+        # Only hide/restore if the window was already on screen and the
+        # user hasn't turned this off — the silent global-hotkey path
+        # never presents the window at all, and should stay that way.
+        self._was_visible_before_capture = (
+            self.get_visible() and self.settings.get_boolean("hide-during-capture")
+        )
         if self._was_visible_before_capture:
             self.minimize()
             # minimize() under Wayland just requests the compositor hide

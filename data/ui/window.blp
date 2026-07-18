@@ -485,6 +485,25 @@ template $LensWindow : Adw.ApplicationWindow {
                             valign: center;
                           }
                         }
+
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label {
+                            label: _("Hide Window During Capture");
+                            xalign: 0;
+                            hexpand: true;
+                            styles ["dim-label"]
+                          }
+
+                          Switch hide_during_capture_switch {
+                            valign: center;
+                          }
+                        }
                       }
 
                       Label {

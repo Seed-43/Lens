@@ -25,7 +25,7 @@ appstream_file = i18n.merge_file(
   output: 'io.github.seed43.lens.appdata.xml',
   po_dir: '../po',
   install: true,
-  install_dir: join_paths(get_option('datadir'), 'appdata')
+  install_dir: join_paths(get_option('datadir'), 'metainfo')
 )
 
 # Install screenshots
@@ -52,7 +52,7 @@ install_data('io.github.seed43.lens.gschema.xml',
 
 # Default tesseract trained model
 install_data('tessdata/eng.traineddata',
-  install_dir: join_paths(get_option('datadir'), 'appdata')
+  install_dir: join_paths(pkgdatadir, 'tessdata')
 )
 
 compile_schemas = find_program('glib-compile-schemas', required: false)
@@ -84,4 +84,3 @@ app_resources = gnome.compile_resources(app_id,
     install: true,
     install_dir: pkgdatadir
 )
-

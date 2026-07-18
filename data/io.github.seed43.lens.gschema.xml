@@ -56,5 +56,10 @@
       <summary>Delete screenshot after extraction</summary>
       <description>Remove the captured screenshot file once text has been extracted from it.</description>
     </key>
+    <key name="hide-during-capture" type="b">
+      <default>true</default>
+      <summary>Hide window during capture</summary>
+      <description>Minimize the Lens window while taking a screenshot, so it doesn't get in the way, then bring it back once extraction finishes.</description>
+    </key>
   </schema>
 </schemalist>
