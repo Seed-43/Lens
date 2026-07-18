@@ -9,7 +9,7 @@
 
 from gettext import gettext as _
 
-from gi.repository import Gtk, GLib, GObject
+from gi.repository import Gtk
 from loguru import logger
 
 from lens.config import RESOURCE_PREFIX

@@ -325,16 +325,22 @@ template $LensWindow : Adw.ApplicationWindow {
 
                       Box {
                         orientation: vertical;
-                        spacing: 6;
+                        spacing: 0;
+                        styles ["card"]
 
                         Box {
                           orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
                           spacing: 4;
 
                           Label {
                             label: _("Engine");
                             xalign: 0;
                             hexpand: true;
+                            styles ["dim-label"]
                           }
 
                           Button ocr_uninstall_btn {
@@ -347,44 +353,62 @@ template $LensWindow : Adw.ApplicationWindow {
 
                           DropDown ocr_engine_dropdown {
                             model: StringList {
-                              strings [_("Tesseract 5"), _("EasyOCR"), _("PaddleOCR"), _("docTR")]
+                              strings [_("Tesseract 5"), _("Ocrad"), _("EasyOCR"), _("docTR")]
                             };
                             styles ["flat"]
                           }
                         }
 
-                        Box ocr_download_box {
-                          orientation: vertical;
+                        Separator {}
+
+                        Box {
+                          orientation: horizontal;
+                          margin-top: 10;
+                          margin-bottom: 10;
+                          margin-start: 12;
+                          margin-end: 12;
+
+                          Label ocr_engine_description_label {
+                            xalign: 0;
+                            hexpand: true;
+                            wrap: true;
+                            styles ["dim-label", "caption"]
+                          }
+                        }
+                      }
+
+                      Box ocr_download_box {
+                        orientation: vertical;
+                        visible: false;
+                        spacing: 6;
+                        margin-top: 6;
+
+                        Box {
+                          orientation: horizontal;
+                          spacing: 8;
+
+                          Image {
+                            icon-name: "dialog-information-symbolic";
+                            styles ["dim-label"]
+                          }
+
+                          Label ocr_status_label {
+                            xalign: 0;
+                            hexpand: true;
+                            wrap: true;
+                            styles ["dim-label", "caption"]
+                          }
+
+                          Button ocr_download_btn {
+                            label: _("Download");
+                            valign: center;
+                            styles ["suggested-action"]
+                          }
+                        }
+
+                        ProgressBar ocr_progress_bar {
                           visible: false;
-                          spacing: 6;
-
-                          Box {
-                            orientation: horizontal;
-                            spacing: 8;
-
-                            Image {
-                              icon-name: "dialog-information-symbolic";
-                              styles ["dim-label"]
-                            }
-
-                            Label ocr_status_label {
-                              xalign: 0;
-                              hexpand: true;
-                              wrap: true;
-                              styles ["dim-label", "caption"]
-                            }
-
-                            Button ocr_download_btn {
-                              label: _("Download");
-                              valign: center;
-                              styles ["suggested-action"]
-                            }
-                          }
-
-                          ProgressBar ocr_progress_bar {
-                            visible: false;
-                            styles ["osd"]
-                          }
+                          styles ["osd"]
                         }
                       }
 
@@ -428,13 +452,62 @@ template $LensWindow : Adw.ApplicationWindow {
                         orientation: horizontal;
 
                         Label {
-                          label: _("Delete screenshot after extraction");
+                          label: _("Auto Delete Screenshot");
                           xalign: 0;
                           hexpand: true;
                         }
 
                         Switch delete_screenshot_switch {
                           valign: center;
+                        }
+                      }
+
+                      Label {
+                        label: _("Global Shortcut");
+                        xalign: 0;
+                        styles ["heading", "dim-label"]
+                        margin-top: 8;
+                        margin-bottom: 2;
+                      }
+
+                      Box {
+                        orientation: vertical;
+                        spacing: 6;
+
+                        Box {
+                          orientation: horizontal;
+
+                          Label {
+                            label: _("Shortcut");
+                            xalign: 0;
+                            hexpand: true;
+                          }
+
+                          Button hotkey_clear_btn {
+                            icon-name: "user-trash-symbolic";
+                            tooltip-text: _("Remove shortcut");
+                            valign: center;
+                            styles ["flat"]
+                          }
+
+                          Button hotkey_capture_btn {
+                            valign: center;
+                            styles ["flat"]
+                          }
+                        }
+
+                        Box {
+                          orientation: horizontal;
+
+                          Label {
+                            label: _("When pressed");
+                            xalign: 0;
+                            hexpand: true;
+                          }
+
+                          DropDown hotkey_mode_dropdown {
+                            styles ["flat"]
+                          }
                         }
                       }
 

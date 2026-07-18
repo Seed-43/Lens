@@ -10,7 +10,6 @@
 import json
 import os
 from datetime import datetime
-from gettext import gettext as _
 
 from gi.repository import GObject
 from loguru import logger

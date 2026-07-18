@@ -66,7 +66,6 @@ subdir('icons')
 
 blueprints = custom_target('blueprints',
   input: files(
-    'ui/preferences_languages.blp',
     'ui/shortcuts.blp',
     'ui/window.blp',
     'ui/language_popover.blp',

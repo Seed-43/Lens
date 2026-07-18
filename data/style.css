@@ -24,6 +24,15 @@
  margin-left: 0;
  margin-right: 0;
 }
+
+/* Compact trailing icon buttons in the language manage list —
+   without this they render at GTK's default button size and look
+   like separate pill buttons rather than list-row affordances. */
+.compact-icon-btn {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px;
+}
 /* Lang Selector */
 .search_box {
   background: @popover_bg_color;

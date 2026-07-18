@@ -8,7 +8,6 @@
 # (at your option) any later version.
 
 import subprocess
-from gettext import gettext as _
 
 from gi.repository import GObject
 from loguru import logger
@@ -124,7 +123,7 @@ class HotkeyService(GObject.GObject):
 
             # Fully wipe the dconf path so no stale entries remain
             _run(["dconf", "reset", "-f",
-                  f"/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/lens-hotkey/"])
+                  "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/lens-hotkey/"])
 
             logger.debug("Hotkey cleared")
             self.emit("shortcut-changed", "")

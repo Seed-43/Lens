@@ -28,7 +28,7 @@ from lens.gobject_worker import GObjectWorker
 from lens.language_manager import language_manager
 from lens.services.clipboard_service import ClipboardService, clipboard_service
 from lens.services.history_service import HistoryEntry, history_service
-from lens.services.ocr_engine_service import ocr_engine_service, ENGINES, ENGINE_KEYS
+from lens.services.ocr_engine_service import ocr_engine_service, ENGINES, ENGINE_KEYS, BUILTIN_ENGINES
 from lens.services.hotkey_service import hotkey_service
 from lens.services.screenshot_service import ScreenshotService
 from lens.widgets.language_popover import LanguagePopover
@@ -74,7 +74,11 @@ class LensWindow(Adw.ApplicationWindow):
     autolinks_switch:         Gtk.Switch          = Gtk.Template.Child()
     delete_screenshot_switch: Gtk.Switch          = Gtk.Template.Child()
     history_days_spin:        Gtk.SpinButton      = Gtk.Template.Child()
+    hotkey_capture_btn:       Gtk.Button          = Gtk.Template.Child()
+    hotkey_mode_dropdown:     Gtk.DropDown        = Gtk.Template.Child()
+    hotkey_clear_btn:         Gtk.Button          = Gtk.Template.Child()
     ocr_engine_dropdown:      Gtk.DropDown        = Gtk.Template.Child()
+    ocr_engine_description_label: Gtk.Label       = Gtk.Template.Child()
     ocr_download_box:         Gtk.Box             = Gtk.Template.Child()
     ocr_status_label:         Gtk.Label           = Gtk.Template.Child()
     ocr_download_btn:         Gtk.Button          = Gtk.Template.Child()
@@ -114,6 +118,7 @@ class LensWindow(Adw.ApplicationWindow):
         self._init_settings_bindings()
         self._init_ocr_engine()
         self._init_history()
+        self._init_hotkey()
         self._init_screenshot_backend()
         self._init_clipboard()
         self._init_drag_and_drop()
@@ -383,20 +388,22 @@ class LensWindow(Adw.ApplicationWindow):
         self.ocr_engine_dropdown.set_selected(idx)
         self.ocr_engine_dropdown.connect("notify::selected", self._on_ocr_engine_changed)
 
-        # Tooltips for each engine option
-        tooltips = [
-            _("Tesseract 5 — Default engine. Fast, offline, 100+ languages. Best for clean printed text."),
-            _("EasyOCR — Better accuracy on photos, handwriting and complex backgrounds. Requires download (~2.5 GB)."),
-            _("PaddleOCR — Excellent for Asian languages and rotated text. Requires download (~1 GB)."),
-            _("docTR — Best for structured documents and multi-column layouts. Requires download (~2 GB)."),
+        # Descriptions for each engine option — shown in the card and
+        # doubled up as the dropdown's hover tooltip.
+        descriptions = [
+            _("Default engine. Fast, offline, 100+ languages. Best for clean printed text."),
+            _("Tiny and instant, no download. Latin-script printed text only, no language packs."),
+            _("Better accuracy on photos, handwriting and complex backgrounds. Requires download (~2.5 GB)."),
+            _("Best for structured documents and multi-column layouts. Requires download (~2 GB)."),
         ]
-        self._ocr_tooltips = tooltips
+        self._ocr_descriptions = descriptions
         self._ocr_downloading = False
         self._ocr_pulse_id = 0
         self._downloading_engine: str | None = None
         self._pending_updates: dict[str, str] = {}
         self._banner_engine: str | None = None
-        self.ocr_engine_dropdown.set_tooltip_text(tooltips[idx])
+        self.ocr_engine_dropdown.set_tooltip_text(descriptions[idx])
+        self.ocr_engine_description_label.set_label(descriptions[idx])
         self.ocr_download_btn.connect("clicked",  self._on_ocr_download)
         self.ocr_uninstall_btn.connect("clicked", self._on_ocr_uninstall)
         self.engine_update_banner.connect("button-clicked", self._on_engine_update_clicked)
@@ -412,7 +419,8 @@ class LensWindow(Adw.ApplicationWindow):
         engine = ENGINE_KEYS[idx]
         self.settings.set_string("ocr-engine", engine)
         self.settings.sync()
-        self.ocr_engine_dropdown.set_tooltip_text(self._ocr_tooltips[idx])
+        self.ocr_engine_dropdown.set_tooltip_text(self._ocr_descriptions[idx])
+        self.ocr_engine_description_label.set_label(self._ocr_descriptions[idx])
         self._update_ocr_status()
 
     def _update_ocr_status(self) -> None:
@@ -439,7 +447,7 @@ class LensWindow(Adw.ApplicationWindow):
         logger.debug(f"OCR engine: {engine}, installed: {installed}")
         if installed:
             self.ocr_download_box.set_visible(False)
-            self.ocr_uninstall_btn.set_visible(engine != "tesseract")
+            self.ocr_uninstall_btn.set_visible(engine not in BUILTIN_ENGINES)
         else:
             label = ENGINES[engine]["label"]
             self.ocr_status_label.set_label(_("{} is not installed.").format(label))
@@ -708,6 +716,131 @@ class LensWindow(Adw.ApplicationWindow):
         self._refresh_history()
 
     # ------------------------------------------------------------------ #
+    # Global hotkey                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _init_hotkey(self) -> None:
+        """Wire up the system-wide shortcut controls in Settings."""
+        self._hotkey_capturing = False
+        self._hotkey_key_controller: Gtk.EventControllerKey | None = None
+
+        self.hotkey_mode_dropdown.set_model(
+            Gtk.StringList.new([_("Open Lens"), _("Copy text silently")])
+        )
+        self.hotkey_capture_btn.connect("clicked", self._on_hotkey_capture_clicked)
+        self.hotkey_clear_btn.connect("clicked", self._on_hotkey_clear_clicked)
+        self.hotkey_mode_dropdown.connect("notify::selected", self._on_hotkey_mode_changed)
+
+        self._refresh_hotkey_status()
+
+    def _refresh_hotkey_status(self) -> None:
+        """Read the current shortcut/mode off the host — do it off-thread."""
+        GObjectWorker.call(
+            lambda: (hotkey_service.get_current_shortcut(), hotkey_service.get_current_mode()),
+            callback=self._apply_hotkey_status,
+        )
+
+    def _apply_hotkey_status(self, result: tuple[str | None, str]) -> None:
+        shortcut, mode = result
+        if shortcut:
+            label = Gtk.accelerator_get_label(*Gtk.accelerator_parse(shortcut))
+            self.hotkey_capture_btn.set_label(label)
+            self.hotkey_clear_btn.set_sensitive(True)
+            self.hotkey_mode_dropdown.set_sensitive(True)
+            self.hotkey_mode_dropdown.set_selected(1 if mode == "silent" else 0)
+        else:
+            self.hotkey_capture_btn.set_label(_("Set Shortcut"))
+            self.hotkey_clear_btn.set_sensitive(False)
+            self.hotkey_mode_dropdown.set_sensitive(False)
+
+    def _on_hotkey_capture_clicked(self, _btn) -> None:
+        if self._hotkey_capturing:
+            return
+        self._hotkey_capturing = True
+        self.hotkey_capture_btn.set_label(_("Press a key combination… (Esc to cancel)"))
+
+        controller = Gtk.EventControllerKey.new()
+        controller.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        controller.connect("key-pressed", self._on_hotkey_key_pressed)
+        self.add_controller(controller)
+        self._hotkey_key_controller = controller
+
+    def _stop_hotkey_capture(self) -> None:
+        self._hotkey_capturing = False
+        if self._hotkey_key_controller:
+            self.remove_controller(self._hotkey_key_controller)
+            self._hotkey_key_controller = None
+
+    def _on_hotkey_key_pressed(self, _controller, keyval, _keycode, state) -> bool:
+        if not self._hotkey_capturing:
+            return False
+
+        if keyval == Gdk.KEY_Escape:
+            self._stop_hotkey_capture()
+            self._refresh_hotkey_status()
+            return True
+
+        # Ignore bare modifier presses — wait for the real key.
+        if keyval in (
+            Gdk.KEY_Control_L, Gdk.KEY_Control_R,
+            Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
+            Gdk.KEY_Alt_L, Gdk.KEY_Alt_R,
+            Gdk.KEY_Super_L, Gdk.KEY_Super_R,
+        ):
+            return True
+
+        mods = state & Gtk.accelerator_get_default_mod_mask()
+        if not mods:
+            # Require at least one modifier so plain letters still type normally.
+            self.show_toast(_("Include Ctrl, Alt, or Super in the shortcut"))
+            return True
+
+        binding = Gtk.accelerator_name(keyval, mods)
+        self._stop_hotkey_capture()
+
+        mode = "silent" if self.hotkey_mode_dropdown.get_selected() == 1 else "show"
+        self.hotkey_capture_btn.set_label(_("Saving…"))
+        GObjectWorker.call(
+            lambda: hotkey_service.set_shortcut(binding, mode),
+            callback=lambda ok: self._on_hotkey_set_done(ok, binding),
+        )
+        return True
+
+    def _on_hotkey_set_done(self, ok: bool, binding: str) -> None:
+        if ok:
+            self.show_toast(_("Shortcut updated"))
+        else:
+            self.show_toast(_("Couldn't set that shortcut"))
+        self._refresh_hotkey_status()
+
+    def _on_hotkey_clear_clicked(self, _btn) -> None:
+        self.hotkey_clear_btn.set_sensitive(False)
+        GObjectWorker.call(
+            hotkey_service.clear_shortcut,
+            callback=self._on_hotkey_clear_done,
+        )
+
+    def _on_hotkey_clear_done(self, ok: bool) -> None:
+        self.show_toast(_("Shortcut removed") if ok else _("Couldn't remove shortcut"))
+        self._refresh_hotkey_status()
+
+    def _on_hotkey_mode_changed(self, dropdown, _param) -> None:
+        # Only re-save if a shortcut already exists — otherwise this fires
+        # on startup with nothing to apply yet.
+        if not self.hotkey_clear_btn.get_sensitive():
+            return
+        GObjectWorker.call(
+            lambda: (hotkey_service.get_current_shortcut(),),
+            callback=lambda result: self._reapply_hotkey_mode(result[0]),
+        )
+
+    def _reapply_hotkey_mode(self, shortcut: str | None) -> None:
+        if not shortcut:
+            return
+        mode = "silent" if self.hotkey_mode_dropdown.get_selected() == 1 else "show"
+        GObjectWorker.call(lambda: hotkey_service.set_shortcut(shortcut, mode))
+
+    # ------------------------------------------------------------------ #
     # Error display                                                        #
     # ------------------------------------------------------------------ #
 
@@ -751,7 +884,3 @@ class LensWindow(Adw.ApplicationWindow):
             return bool(r.scheme and r.netloc)
         except Exception:
             return False
-
-    # Keep for compatibility with preferences action in main.py
-    def show_preferences(self) -> None:
-        self.tab_settings.set_active(True)

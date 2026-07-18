@@ -7,7 +7,6 @@
         <file preprocess="xml-stripblanks">ui/language_popover_row.ui</file>
         <file preprocess="xml-stripblanks">ui/language_row.ui</file>
         <file preprocess="xml-stripblanks">ui/shortcuts.ui</file>
-        <file preprocess="xml-stripblanks">ui/preferences_languages.ui</file>
         <file>icons/io.github.seed43.lens.svg</file>
         <file>style.css</file>
     </gresource>

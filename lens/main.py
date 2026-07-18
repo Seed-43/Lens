@@ -25,7 +25,6 @@ from loguru import logger
 
 from lens.config import APP_ID, RESOURCE_PREFIX
 from lens.language_manager import language_manager
-from lens.services.clipboard_service import clipboard_service
 from lens.settings import Settings
 from lens.window import LensWindow
 

@@ -1,0 +1,18 @@
+{
+    "name": "ocrad",
+    "buildsystem": "simple",
+    "build-commands": [
+        "/app/bin/lzip -dc ocrad-0.29.tar.lz | tar -x --strip-components=1",
+        "./configure --prefix=/app --disable-static",
+        "make",
+        "make install"
+    ],
+    "sources": [
+        {
+            "type": "file",
+            "url": "https://ftpmirror.gnu.org/ocrad/ocrad-0.29.tar.lz",
+            "sha256": "11200cc6b0b7ba16884a72dccb58ef694f7aa26cd2b2041e555580f064d2d9e9",
+            "dest-filename": "ocrad-0.29.tar.lz"
+        }
+    ]
+}

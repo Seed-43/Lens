@@ -28,12 +28,18 @@ _VENV_PY = os.path.join(_VENV_DIR, "bin", "python3")
 _RUNNER_PATH = os.path.join(_DATA_DIR, "ocr_runner.py")
 
 # How long a single extraction may take.  Generous because EasyOCR,
-# PaddleOCR and docTR download their models on first run.
+# EasyOCR and docTR download their models on first run.
 _EXTRACT_TIMEOUT = 900
 
 ENGINES = {
     "tesseract": {
         "label": "Tesseract 5",
+        "packages": [],
+        "pip_name": None,
+        "extra_index": None,
+    },
+    "ocrad": {
+        "label": "Ocrad",
         "packages": [],
         "pip_name": None,
         "extra_index": None,
@@ -44,16 +50,6 @@ ENGINES = {
         "pip_name": "easyocr",
         "extra_index": None,
     },
-    "paddleocr": {
-        "label": "PaddleOCR",
-        "packages": ["paddlepaddle", "paddleocr"],
-        "pip_name": "paddleocr",
-        # PyPI's paddlepaddle wheels lag behind new CPython releases by
-        # months, so on a fresh interpreter "pip install paddlepaddle"
-        # can report zero available versions. PaddlePaddle publish their
-        # own CPU wheels here, usually well ahead of PyPI.
-        "extra_index": "https://www.paddlepaddle.org.cn/packages/stable/cpu/",
-    },
     "doctr": {
         "label": "docTR",
         "packages": ["python-doctr[torch]"],
@@ -61,7 +57,13 @@ ENGINES = {
         "extra_index": None,
     },
 }
-ENGINE_KEYS = ["tesseract", "easyocr", "paddleocr", "doctr"]
+ENGINE_KEYS = ["tesseract", "ocrad", "easyocr", "doctr"]
+
+# Engines that ship baked into the app itself (built from source in the
+# Flatpak, or already present in a distro package) rather than being
+# downloaded at runtime. Always reported as installed, never offered a
+# Download button.
+BUILTIN_ENGINES = {"tesseract", "ocrad"}
 
 
 # --------------------------------------------------------------------- #
@@ -89,14 +91,6 @@ EASYOCR_LANGS = {
     "tam": "ta", "tel": "te", "kan": "kn", "mar": "mr", "nep": "ne",
 }
 
-# Tesseract three-letter codes to PaddleOCR codes
-PADDLE_LANGS = {
-    "eng": "en", "chi_sim": "ch", "chi_tra": "chinese_cht",
-    "fra": "fr", "deu": "german", "kor": "korean", "jpn": "japan",
-    "rus": "ru", "ara": "ar", "hin": "hi", "spa": "es", "por": "pt",
-    "ita": "it", "nld": "nl", "tur": "tr", "ukr": "uk",
-}
-
 
 def _tess_codes(lang):
     return [c for c in lang.split("+") if c]
@@ -114,32 +108,6 @@ def run_easyocr(image_path, lang):
     reader = easyocr.Reader(codes, gpu=False, verbose=False)
     results = reader.readtext(image_path)
     return "\n".join(r[1] for r in results)
-
-
-def run_paddleocr(image_path, lang):
-    from paddleocr import PaddleOCR
-    codes = _tess_codes(lang)
-    plang = PADDLE_LANGS.get(codes[0], "en") if codes else "en"
-
-    # PaddleOCR 3.x
-    try:
-        ocr = PaddleOCR(lang=plang, use_textline_orientation=True)
-        results = ocr.predict(image_path)
-        texts = []
-        for res in results:
-            data = getattr(res, "res", None) or res
-            if isinstance(data, dict):
-                texts.extend(data.get("rec_texts") or [])
-        return "\n".join(texts)
-    except TypeError:
-        pass
-
-    # PaddleOCR 2.x
-    ocr = PaddleOCR(lang=plang, use_angle_cls=True, show_log=False)
-    result = ocr.ocr(image_path, cls=True)
-    if result and result[0]:
-        return "\n".join(line[1][0] for line in result[0])
-    return ""
 
 
 def run_doctr(image_path, lang):
@@ -162,7 +130,6 @@ def main():
     engine, image_path, lang = sys.argv[1], sys.argv[2], sys.argv[3]
     runners = {
         "easyocr": run_easyocr,
-        "paddleocr": run_paddleocr,
         "doctr": run_doctr,
     }
     fn = runners.get(engine)
@@ -267,7 +234,7 @@ class OcrEngineService(GObject.GObject):
         Note: this runs a short subprocess, so call it from a worker
         thread when updating the UI.
         """
-        if engine_key == "tesseract":
+        if engine_key in BUILTIN_ENGINES:
             return True
         if not refresh and engine_key in self._installed_cache:
             return self._installed_cache[engine_key]
@@ -290,7 +257,7 @@ class OcrEngineService(GObject.GObject):
 
     def any_extra_installed(self) -> bool:
         return any(
-            self.is_installed(k) for k in ENGINE_KEYS if k != "tesseract"
+            self.is_installed(k) for k in ENGINE_KEYS if k not in BUILTIN_ENGINES
         )
 
     # ------------------------------------------------------------------ #
@@ -397,7 +364,7 @@ class OcrEngineService(GObject.GObject):
             # reclaim the shared dependencies (torch and friends).
             still_used = any(
                 self.is_installed(k, refresh=True)
-                for k in ENGINE_KEYS if k != "tesseract"
+                for k in ENGINE_KEYS if k not in BUILTIN_ENGINES
             )
             if ok and not still_used:
                 logger.debug("No engines left — removing venv entirely")
@@ -455,7 +422,7 @@ class OcrEngineService(GObject.GObject):
         try:
             result = self._run(cmd, timeout=20)
             # "pip index" is experimental but stable enough to parse:
-            # first line looks like "paddleocr (2.9.1)"
+            # first line looks like "easyocr (1.7.2)"
             for line in result.stdout.splitlines():
                 line = line.strip()
                 if line.startswith(pip_name) and "(" in line and ")" in line:
@@ -466,7 +433,9 @@ class OcrEngineService(GObject.GObject):
 
     def check_updates(self) -> None:
         """
-        Check every installed non-Tesseract engine for a newer release.
+        Check every installed engine for a newer release, skipping the
+        built-in ones (Tesseract, Ocrad), which are updated by rebuilding
+        the app itself, not by a runtime download.
 
         Runs entirely on a worker thread; emits ``update-available`` on
         the main loop once per engine that has one. Safe to call even
@@ -477,7 +446,7 @@ class OcrEngineService(GObject.GObject):
 
     def _check_updates_worker(self) -> None:
         for engine_key in ENGINE_KEYS:
-            if engine_key == "tesseract":
+            if engine_key in BUILTIN_ENGINES:
                 continue
             if not self.is_installed(engine_key, refresh=True):
                 continue
@@ -503,6 +472,12 @@ class OcrEngineService(GObject.GObject):
         """
         if engine_key == "tesseract":
             return self._extract_tesseract(source, lang)
+        if engine_key == "ocrad":
+            text, errored = self._extract_ocrad(source)
+            if errored:
+                self._emit_on_main("engine-fallback", ENGINES["ocrad"]["label"])
+                return self._extract_tesseract(source, lang)
+            return text
 
         text, errored = self._extract_via_venv(engine_key, source, lang)
         if errored:
@@ -511,6 +486,45 @@ class OcrEngineService(GObject.GObject):
             self._emit_on_main("engine-fallback", label)
             return self._extract_tesseract(source, lang)
         return text
+
+    def _extract_ocrad(self, source: Union[str, BytesIO]) -> tuple[str | None, bool]:
+        """
+        Run the bundled ``ocrad`` binary against *source*.
+
+        Ocrad only understands PNM/PGM/PBM/PPM images reliably across
+        versions (PNG support depends on how it was built), so the image
+        is always converted to grayscale PNM first via Pillow, which
+        every build of ocrad accepts. Ocrad has no language packs — it
+        recognizes shapes, not scripts — so it works best on clean,
+        printed Latin-script text and the *lang* setting doesn't apply.
+
+        Returns ``(text, errored)``, matching ``_extract_via_venv``.
+        """
+        from PIL import Image
+
+        self._rewind(source)
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pgm", delete=False) as f:
+                tmp_path = f.name
+            Image.open(source).convert("L").save(tmp_path)
+
+            result = self._run(
+                ["ocrad", "--format=utf8", tmp_path], timeout=30
+            )
+            if result.returncode != 0:
+                logger.debug(f"ocrad exited {result.returncode}: {result.stderr[:300]}")
+                return None, True
+            return (result.stdout or "").strip() or None, False
+        except Exception as exc:
+            logger.debug(f"ocrad extraction failed: {exc}")
+            return None, True
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     @staticmethod
     def _rewind(source) -> None:

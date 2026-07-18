@@ -8,7 +8,6 @@
 # (at your option) any later version.
 
 from gi.repository import Gio, GObject, Gtk
-from loguru import logger
 
 from lens.config import RESOURCE_PREFIX
 from lens.language_manager import language_manager

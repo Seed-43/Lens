@@ -39,6 +39,8 @@
         },
         "leptonica.json",
         "tesseract.json",
+        "lzip.json",
+        "ocrad.json",
         "libportal.json",
         "zbar.json",
         "python3-modules.json",
@@ -48,9 +50,8 @@
             "buildsystem": "meson",
             "sources": [
                 {
-                    "type": "git",
-                    "url": "https://github.com/Seed-43/Lens.git",
-                    "tag": "v1.7.0"
+                    "type": "dir",
+                    "path": ".."
                 }
             ]
         }

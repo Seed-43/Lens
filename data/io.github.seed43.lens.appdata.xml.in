@@ -15,7 +15,7 @@
         <p>Features:</p>
         <ul>
             <li>Extract text from screenshots, images and clipboard</li>
-            <li>Choose between Tesseract, EasyOCR, PaddleOCR and docTR, with in-app download and update checks for each engine</li>
+            <li>Choose between Tesseract, Ocrad, EasyOCR and docTR, with in-app download and update checks for the downloadable engines</li>
             <li>Drag and drop image files directly onto the window</li>
             <li>QR code detection and decoding</li>
             <li>Multi-language OCR support, including a secondary language</li>
