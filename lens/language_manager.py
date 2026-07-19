@@ -17,6 +17,7 @@
 
 import os
 import pathlib
+import sys
 from gettext import gettext as _
 from shutil import copyfile
 from urllib import request
@@ -198,9 +199,14 @@ class LanguageManager(GObject.GObject):
         model is in place.
         """
         os.makedirs(tessdata_dir, exist_ok=True)
-        dest   = os.path.join(tessdata_dir, "eng.traineddata")
-        source = pathlib.Path("/app/share/appdata/eng.traineddata")
-        if not os.path.exists(dest):
+        dest = os.path.join(tessdata_dir, "eng.traineddata")
+        # sys.prefix reflects wherever this install actually put things —
+        # /app under Flatpak, /usr for a native RPM/deb install, or
+        # whatever custom --prefix a from-source build used. Matches
+        # where data/meson.build installs the seed file: pkgdatadir
+        # (datadir/lens) + tessdata/.
+        source = pathlib.Path(sys.prefix) / "share" / "lens" / "tessdata" / "eng.traineddata"
+        if not os.path.exists(dest) and source.exists():
             copyfile(source, dest)
 
     # ------------------------------------------------------------------ #
