@@ -96,6 +96,7 @@ class LensWindow(Adw.ApplicationWindow):
     # History panel
     history_list:             Gtk.ListBox         = Gtk.Template.Child()
     history_open_btn:         Gtk.Button          = Gtk.Template.Child()
+    open_link_btn:            Gtk.Button          = Gtk.Template.Child()
     history_clear_all_btn:    Gtk.Button          = Gtk.Template.Child()
 
     # ------------------------------------------------------------------ #
@@ -120,6 +121,9 @@ class LensWindow(Adw.ApplicationWindow):
         self._init_drag_and_drop()
         self._init_window_size()
         self._was_visible_before_capture = True
+        self._pending_link_url: str | None = None
+        self.open_link_btn.connect("clicked", self._on_open_link_clicked)
+        self.settings.connect("changed::autolinks", lambda *_a: self._update_open_link_btn())
         self._capture_timeout_id = 0
 
         self.tab_lens.connect("toggled", self._on_tab_toggled)
@@ -305,23 +309,44 @@ class LensWindow(Adw.ApplicationWindow):
                 clipboard_service.set(text)
                 self.show_toast(_("Text copied to clipboard"))
 
-            if self.uri_validator(text):
-                if self.settings.get_boolean("autolinks"):
-                    Gtk.UriLauncher.new(text).launch()
-                    self.show_toast(_("QR-code URL opened"), priority=Adw.ToastPriority.HIGH)
-                else:
-                    toast = Adw.Toast(
-                        title=_("QR-code contains URL."),
-                        button_label=_("Open"),
-                        priority=Adw.ToastPriority.HIGH,
-                    )
-                    toast.set_detailed_action_name(f'app.show_uri("{text}")')
-                    self.toast_overlay.add_toast(toast)
+            self._pending_link_url = text if self.uri_validator(text) else None
+            self._update_open_link_btn()
 
         except Exception as exc:
             logger.debug(f"on_text_ready error: {exc}")
         finally:
             self._stop_extracting()
+
+    def _update_open_link_btn(self) -> None:
+        """Show the open-in-browser button only when the current text is
+        a URL and the user has "Open QR-code links" turned on."""
+        show = bool(self._pending_link_url) and self.settings.get_boolean("autolinks")
+        self.open_link_btn.set_visible(show)
+
+    def _on_open_link_clicked(self, _btn) -> None:
+        if not self._pending_link_url:
+            return
+        # QR codes are an unverified source — someone can stick a fake
+        # one over a real one. Show the actual destination before
+        # opening anything, rather than launching it straight from a
+        # single click.
+        dialog = Adw.AlertDialog(
+            heading=_("Open This Link?"),
+            body=_(
+                "This URL came from a scanned QR code, which isn't a "
+                "trusted source. Make sure it's where you expect before "
+                "continuing:\n\n{url}"
+            ).format(url=self._pending_link_url),
+        )
+        dialog.add_response("cancel", _("Cancel"))
+        dialog.add_response("open", _("Open"))
+        dialog.set_response_appearance("open", Adw.ResponseAppearance.DESTRUCTIVE)
+        dialog.connect("response", self._on_open_link_response)
+        dialog.present(self)
+
+    def _on_open_link_response(self, _dialog, response: str) -> None:
+        if response == "open" and self._pending_link_url:
+            Gtk.UriLauncher.new(self._pending_link_url).launch()
 
     def _on_backend_error(self, _sender, message: str) -> None:
         self._stop_extracting()

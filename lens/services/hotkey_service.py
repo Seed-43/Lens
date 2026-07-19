@@ -7,6 +7,7 @@
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 
+import os
 import re
 import subprocess
 from gettext import gettext as _
@@ -18,16 +19,23 @@ LENS_BINDING_PATH = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybin
 MEDIA_SCHEMA      = "org.gnome.settings-daemon.plugins.media-keys"
 CUSTOM_SCHEMA     = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding"
 
-APP_CMD_SILENT = "/usr/bin/flatpak run --user io.github.seed43.lens -- -e"
-APP_CMD_SHOW   = "/usr/bin/flatpak run --user io.github.seed43.lens"
+# /.flatpak-info only exists inside a Flatpak sandbox — the standard,
+# reliable way to detect it. flatpak-spawn is only meaningful (and
+# only present) in that context; a native install (like the Fedora
+# RPM) needs gsettings/dconf called directly instead.
+_IN_FLATPAK = os.path.exists("/.flatpak-info")
+
+APP_CMD_SILENT = "/usr/bin/flatpak run --user io.github.seed43.lens -- -e" if _IN_FLATPAK else "/usr/bin/lens -e"
+APP_CMD_SHOW   = "/usr/bin/flatpak run --user io.github.seed43.lens" if _IN_FLATPAK else "/usr/bin/lens"
 
 DEFAULT_SHORTCUT = "<Primary>g"
 
 
 def _run(cmd: list) -> str | None:
-    """Run a command on the host via flatpak-spawn."""
+    """Run a command — via flatpak-spawn on the host if sandboxed,
+    directly otherwise (native installs have no flatpak-spawn at all)."""
     try:
-        full_cmd = ["flatpak-spawn", "--host"] + cmd
+        full_cmd = (["flatpak-spawn", "--host"] if _IN_FLATPAK else []) + cmd
         logger.debug(f"Running: {' '.join(full_cmd)}")
         result = subprocess.run(full_cmd, capture_output=True, text=True, timeout=5)
         if result.returncode != 0:

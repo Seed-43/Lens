@@ -683,6 +683,14 @@ template $LensWindow : Adw.ApplicationWindow {
                 icon-name: "input-keyboard-symbolic";
                 tooltip-text: _("Keyboard Shortcuts");
               }
+
+              [end]
+              Button open_link_btn {
+                icon-name: "web-browser-symbolic";
+                tooltip-text: _("Open scanned link in browser");
+                visible: false;
+                styles ["destructive-action"]
+              }
             }
 
             content: Overlay content_overlay {

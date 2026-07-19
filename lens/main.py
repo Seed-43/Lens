@@ -20,7 +20,7 @@ import sys
 from gettext import gettext as _
 
 from gi.events import GLibEventLoopPolicy
-from gi.repository import Adw, Gdk, GLib, GObject, Gio, Gtk
+from gi.repository import Adw, GLib, GObject, Gio, Gtk
 from loguru import logger
 
 from lens.config import APP_ID, RESOURCE_PREFIX
@@ -60,11 +60,6 @@ class LensApplication(Adw.Application):
 
     def do_startup(self, *args, **kwargs):
         Adw.Application.do_startup(self)
-
-        # URI launcher action (used by QR-code toasts)
-        action = Gio.SimpleAction.new("show_uri", GLib.VariantType.new("s"))
-        action.connect("activate", self._on_show_uri)
-        self.add_action(action)
 
         # Keyboard shortcuts
         self._register_actions()
@@ -125,9 +120,6 @@ class LensApplication(Adw.Application):
 
     def _on_paste_from_clipboard(self, _action, _param) -> None:
         self._get_or_create_window().on_paste_from_clipboard(self)
-
-    def _on_show_uri(self, _action, param) -> None:
-        Gtk.show_uri(None, param.get_string(), Gdk.CURRENT_TIME)
 
     def _on_clear_text(self, _action, _param) -> None:
         win = self._get_or_create_window()
