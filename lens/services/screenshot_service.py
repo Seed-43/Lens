@@ -16,6 +16,9 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import os
+import shutil
+import subprocess
+import tempfile
 from gettext import gettext as _
 from io import BytesIO
 from typing import Union
@@ -23,19 +26,24 @@ from typing import Union
 from PIL import Image
 from gi.repository import Gio, GLib, GObject, Xdp
 from loguru import logger
-try:
-    from pyzbar.pyzbar import decode as decode_qr
-    QR_AVAILABLE = True
-except ImportError:
-    # pyzbar isn't available on every distribution packaging Lens (it
-    # isn't currently a Fedora package, for instance). QR-code
-    # detection just gets skipped rather than the whole app failing
-    # to start over one optional feature.
-    decode_qr = None
-    QR_AVAILABLE = False
 
 from lens.gobject_worker import GObjectWorker
 from lens.services.ocr_engine_service import ocr_engine_service
+
+try:
+    from pyzbar.pyzbar import decode as decode_qr
+    QR_MODE = "pyzbar"
+except ImportError:
+    # pyzbar isn't packaged for every distribution Lens ships on (it
+    # isn't a Fedora package, for instance). Fall back to shelling out
+    # to zbarimg, the command-line tool from the same zbar project —
+    # which *is* packaged there — same pattern already used for ocrad.
+    # If neither is available, QR detection is skipped entirely rather
+    # than the whole app failing to start over one optional feature.
+    decode_qr = None
+    QR_MODE = "zbarimg" if shutil.which("zbarimg") else None
+
+QR_AVAILABLE = QR_MODE is not None
 
 
 class ScreenshotService(GObject.GObject):
@@ -197,13 +205,53 @@ class ScreenshotService(GObject.GObject):
         """Try QR decoding first, then use the selected OCR engine."""
         if hasattr(source, "seek"):
             source.seek(0)
-        if QR_AVAILABLE:
+        if QR_MODE == "pyzbar":
             qr_results = decode_qr(Image.open(source))
             if qr_results:
                 return qr_results[0].data.decode("utf-8")
             # The QR pass consumed the stream — the engine service
             # rewinds it again before reading.
+        elif QR_MODE == "zbarimg":
+            qr_text = self._decode_qr_zbarimg(source)
+            if qr_text:
+                return qr_text
         return ocr_engine_service.extract(engine, source, lang)
+
+    def _decode_qr_zbarimg(self, source: Union[str, BytesIO]) -> str | None:
+        """
+        Decode a QR code via the zbarimg command-line tool.
+
+        Used when the pyzbar Python binding isn't installed but the
+        zbar project's own CLI tool is on PATH (true for a native
+        Fedora install, where zbar is a real package but pyzbar isn't).
+        """
+        tmp_path = None
+        try:
+            if isinstance(source, str):
+                image_path = source
+            else:
+                if hasattr(source, "seek"):
+                    source.seek(0)
+                with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as f:
+                    f.write(source.read())
+                    tmp_path = f.name
+                image_path = tmp_path
+
+            result = subprocess.run(
+                ["zbarimg", "--raw", "--quiet", image_path],
+                capture_output=True, text=True, timeout=10,
+            )
+            text = result.stdout.strip()
+            return text or None
+        except Exception as exc:
+            logger.debug(f"zbarimg decode failed: {exc}")
+            return None
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def _delete_file(self, path: str) -> None:
         """Silently remove a temporary screenshot file."""
