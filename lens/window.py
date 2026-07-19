@@ -122,6 +122,7 @@ class LensWindow(Adw.ApplicationWindow):
         self._init_window_size()
         self._was_visible_before_capture = True
         self._pending_link_url: str | None = None
+        self._current_history_entry_id: str | None = None
         self.open_link_btn.connect("clicked", self._on_open_link_clicked)
         self.settings.connect("changed::autolinks", lambda *_a: self._update_open_link_btn())
         self._capture_timeout_id = 0
@@ -302,7 +303,8 @@ class LensWindow(Adw.ApplicationWindow):
         try:
             self.buffer.set_text(text)
             self.content_stack.set_visible_child_name("text")
-            history_service.add(text)
+            entry = history_service.add(text)
+            self._current_history_entry_id = entry.id
             self.tab_lens.set_active(True)
 
             if self.settings.get_boolean("autocopy") or copy:
@@ -752,9 +754,16 @@ class LensWindow(Adw.ApplicationWindow):
         if row:
             self.buffer.set_text(row.entry_text)
             self.content_stack.set_visible_child_name("text")
+            self._current_history_entry_id = row.entry_id
+            self._pending_link_url = row.entry_text if self.uri_validator(row.entry_text) else None
+            self._update_open_link_btn()
 
     def _on_history_delete(self, _btn, entry_id: str) -> None:
         history_service.delete(entry_id)
+        if entry_id == self._current_history_entry_id:
+            self._current_history_entry_id = None
+            self._pending_link_url = None
+            self._update_open_link_btn()
 
     def _on_history_clear_all(self, _btn) -> None:
         dialog = Adw.AlertDialog(
@@ -764,11 +773,15 @@ class LensWindow(Adw.ApplicationWindow):
         dialog.add_response("cancel", _("Cancel"))
         dialog.add_response("delete", _("Delete All"))
         dialog.set_response_appearance("delete", Adw.ResponseAppearance.DESTRUCTIVE)
-        dialog.connect(
-            "response",
-            lambda d, r: history_service.clear() if r == "delete" else None,
-        )
+        dialog.connect("response", self._on_history_clear_all_response)
         dialog.present(self)
+
+    def _on_history_clear_all_response(self, _dialog, response: str) -> None:
+        if response == "delete":
+            history_service.clear()
+            self._current_history_entry_id = None
+            self._pending_link_url = None
+            self._update_open_link_btn()
 
     def _on_history_changed(self, _) -> None:
         self._refresh_history()
