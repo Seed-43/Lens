@@ -23,7 +23,16 @@ from typing import Union
 from PIL import Image
 from gi.repository import Gio, GLib, GObject, Xdp
 from loguru import logger
-from pyzbar.pyzbar import decode as decode_qr
+try:
+    from pyzbar.pyzbar import decode as decode_qr
+    QR_AVAILABLE = True
+except ImportError:
+    # pyzbar isn't available on every distribution packaging Lens (it
+    # isn't currently a Fedora package, for instance). QR-code
+    # detection just gets skipped rather than the whole app failing
+    # to start over one optional feature.
+    decode_qr = None
+    QR_AVAILABLE = False
 
 from lens.gobject_worker import GObjectWorker
 from lens.services.ocr_engine_service import ocr_engine_service
@@ -188,11 +197,12 @@ class ScreenshotService(GObject.GObject):
         """Try QR decoding first, then use the selected OCR engine."""
         if hasattr(source, "seek"):
             source.seek(0)
-        qr_results = decode_qr(Image.open(source))
-        if qr_results:
-            return qr_results[0].data.decode("utf-8")
-        # The QR pass consumed the stream — the engine service rewinds
-        # it again before reading.
+        if QR_AVAILABLE:
+            qr_results = decode_qr(Image.open(source))
+            if qr_results:
+                return qr_results[0].data.decode("utf-8")
+            # The QR pass consumed the stream — the engine service
+            # rewinds it again before reading.
         return ocr_engine_service.extract(engine, source, lang)
 
     def _delete_file(self, path: str) -> None:
